@@ -79,7 +79,7 @@ class _CaptureIcon extends StatelessWidget {
         color: selected ? scheme.primary : scheme.onSurface,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(Icons.auto_awesome, size: 18, color: scheme.surface),
+      child: Icon(Icons.auto_awesome, size: 18, color: selected ? scheme.onPrimary : scheme.surface),
     );
   }
 }

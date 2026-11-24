@@ -11,6 +11,7 @@ ThemeData buildAppTheme(Brightness b) {
   final line = dark ? const Color(0xff2a2a2d) : const Color(0xffebebe8);
   final scheme = base.copyWith(
     primary: dark ? const Color(0xff9eb1ff) : accent,
+    onPrimary: dark ? const Color(0xff0f0f10) : Colors.white,
     surface: bg,
     surfaceContainerLow: surface,
     surfaceContainerHighest: dark ? const Color(0xff232326) : const Color(0xfff1f1ee),
@@ -55,9 +56,9 @@ ThemeData buildAppTheme(Brightness b) {
       backgroundColor: bg,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      height: 64,
+      height: 72,
       indicatorColor: Colors.transparent,
-      labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
             size: 24,
             color: s.contains(WidgetState.selected) ? scheme.onSurface : scheme.onSurfaceVariant,
