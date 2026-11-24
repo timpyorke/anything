@@ -55,7 +55,7 @@ class _OverviewPageState extends State<OverviewPage> {
         return Scaffold(
           appBar: AppBar(title: const Text('ภาพรวม')),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
             children: [
               // สูงตามเนื้อหา (ไม่ล็อกอัตราส่วน) กันข้อความล้นเมื่อป้ายยาวหรือผู้ใช้ขยายตัวอักษร
               IntrinsicHeight(

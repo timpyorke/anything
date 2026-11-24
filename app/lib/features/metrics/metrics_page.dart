@@ -43,7 +43,7 @@ class _MetricsPageState extends State<MetricsPage> {
                   text: 'ยังไม่มีตัวเลข\nลองบอก AI ว่า "วันนี้น้ำหนัก 74.5 นอน 7 ชม."',
                 )
               : ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
                   children: [
                     GridView(
                       shrinkWrap: true,

@@ -27,38 +27,57 @@ class EntryCard extends StatelessWidget {
     final soon = rel != null && daysBetween(now, shown) <= 7;
     final cl = e.checklist;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text(rs != null ? fmtDay(shown) : fmtRange(e.date, e.endDate),
-                  style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
-              Pill(cat.label, color: cat.color),
-              if (e.recurrence != null) Pill(e.recurrence!.label, outlined: true, icon: Icons.repeat),
-              if (rel != null) Pill(rel, color: soon ? scheme.primary : null),
-              if (rs != null && rs.next == null) const Pill('ครบแล้ว', outlined: true),
-              if (cl != null) Pill('${cl.done}/${cl.total}', outlined: true, icon: Icons.checklist),
-              if (e.source == 'ai') const Pill('AI', outlined: true, icon: Icons.auto_awesome),
-              if (rs == null)
-                for (final m in e.metrics)
-                  Pill('${state.metricLabel(m.key)} ${fmtNum(m.value)} ${state.metricUnit(m.key, m.unit)}'.trim(), outlined: true),
+    // แถวแบบ journal: คอลัมน์วันที่ซ้าย เนื้อหาขวา คั่นด้วยเส้นบาง (ไม่ใช้กรอบการ์ด)
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: 44,
+            child: Column(children: [
+              Text('${shown.day}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.5)),
+              Text(thMonthsShort[shown.month - 1], style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             ]),
-            if (e.title.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(e.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-            ],
-            if (rs != null) _RecurrenceInfo(entry: e, rs: rs, state: state, color: cat.color),
-            if (e.body.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              MarkdownView(e.body, accent: cat.color, onToggle: (i, done) => _toggle(context, i, done)),
-            ],
-          ]),
-        ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 7, height: 7, decoration: BoxDecoration(color: cat.color, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Flexible(child: Text(cat.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant))),
+                if (rel != null) ...[
+                  const SizedBox(width: 8),
+                  Pill(rel, color: soon ? scheme.primary : null),
+                ],
+              ]),
+              if (e.title.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(e.title, style: Theme.of(context).textTheme.titleMedium),
+              ],
+              if (rs != null) _RecurrenceInfo(entry: e, rs: rs, state: state, color: cat.color),
+              if (e.body.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                MarkdownView(e.body, accent: cat.color, onToggle: (i, done) => _toggle(context, i, done)),
+              ],
+              if (e.endDate != null || e.recurrence != null || (rs != null && rs.next == null) || cl != null || e.source == 'ai' || (rs == null && e.metrics.isNotEmpty)) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  if (e.endDate != null) Pill(fmtRange(e.date, e.endDate), outlined: true, icon: Icons.date_range),
+                  if (e.recurrence != null) Pill(e.recurrence!.label, outlined: true, icon: Icons.repeat),
+                  if (rs != null && rs.next == null) const Pill('ครบแล้ว', outlined: true),
+                  if (cl != null) Pill('${cl.done}/${cl.total}', outlined: true, icon: Icons.checklist),
+                  if (e.source == 'ai') const Pill('AI', outlined: true, icon: Icons.auto_awesome),
+                  if (rs == null)
+                    for (final m in e.metrics)
+                      Pill('${state.metricLabel(m.key)} ${fmtNum(m.value)} ${state.metricUnit(m.key, m.unit)}'.trim(), outlined: true),
+                ]),
+              ],
+            ]),
+          ),
+        ]),
       ),
     );
   }

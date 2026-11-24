@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/utils/dates.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../core/widgets/stat_tile.dart';
 import '../../domain/entry.dart';
 import '../../state/app_state.dart';
 import '../entry_editor/entry_editor_page.dart';
@@ -84,7 +83,7 @@ class _TimelinePageState extends State<TimelinePage> {
                 if (f.active)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 8, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
                       child: Row(children: [
                         if (f.day != null)
                           InputChip(
@@ -141,16 +140,16 @@ class _TimelinePageState extends State<TimelinePage> {
   List<Widget> _section(BuildContext context, String title, String sub, List<Entry> items, DateTime now) => [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
             child: Row(crossAxisAlignment: CrossAxisAlignment.baseline, textBaseline: TextBaseline.alphabetic, children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              Text(title, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(width: 8),
               Text(sub, style: Theme.of(context).textTheme.bodySmall),
             ]),
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.zero,
           sliver: SliverList.builder(
             itemCount: items.length,
             itemBuilder: (context, i) => EntryCard(
@@ -204,6 +203,7 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final birth = state.birth;
     final next = (state.entries.where((e) => !e.hidden && (e.shownDate(now).isAfter(now) || (e.endDate != null && e.isUpcoming(now)))).toList()
           ..sort((a, b) => a.shownDate(now).compareTo(b.shownDate(now))))
@@ -213,27 +213,35 @@ class _Summary extends StatelessWidget {
         .map((e) => e.date)
         .toSet()
         .length;
-    final tiles = [
-      if (birth != null) StatTile(value: '${ageOn(birth.date, now)} ปี', label: 'อายุ', sub: 'เกิด ${fmtDate(birth.date)}'),
-      if (next != null)
-        StatTile(
-          value: relativeLabel(next.shownDate(now), next.lastDate(now), now, isRange: next.endDate != null) ?? '',
-          label: 'ถัดไป',
-          sub: next.title,
-        ),
-      StatTile(value: '$monthDays วัน', label: 'บันทึกเดือนนี้', sub: fmtMonthYear(now)),
+    final facts = [
+      if (birth != null) 'อายุ ${ageOn(birth.date, now)} ปี',
+      'บันทึกเดือนนี้ $monthDays วัน',
     ];
-    // ความสูงตามขนาดตัวอักษรของระบบ — กันการ์ดสรุปล้นทับรายการด้านล่าง
-    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
-    return SizedBox(
-      height: 124 * scale,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        itemCount: tiles.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (_, i) => SizedBox(width: 150, child: tiles[i]),
-      ),
+    final nextRel = next == null
+        ? null
+        : relativeLabel(next.shownDate(now), next.lastDate(now), now, isRange: next.endDate != null);
+    // ไม่ล็อกความสูง: ข้อความยาวแค่ขึ้นบรรทัดใหม่ ไม่มีวันล้นทับ
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(fmtDate(now), style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 2),
+        Text(facts.join(' · '), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+        if (next != null) ...[
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('ถัดไป${nextRel == null ? '' : ' · $nextRel'}', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 2),
+              Text(next.title.isEmpty ? state.category(next.category).label : next.title,
+                  style: Theme.of(context).textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+        ],
+      ]),
     );
   }
 }
@@ -254,7 +262,7 @@ class _CategoryChips extends StatelessWidget {
       height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 6),
