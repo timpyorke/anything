@@ -45,13 +45,7 @@ class EntryCard extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Container(width: 7, height: 7, decoration: BoxDecoration(color: cat.color, shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-                Flexible(child: Text(cat.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurfaceVariant))),
-                if (rel != null) ...[
-                  const SizedBox(width: 8),
-                  Pill(rel, color: soon ? scheme.primary : null),
-                ],
+                if (rel != null) Pill(rel, color: soon ? scheme.primary : null),
               ]),
               if (e.title.isNotEmpty) ...[
                 const SizedBox(height: 4),

@@ -9,9 +9,18 @@ import 'entry_card.dart';
 import 'timeline_filter.dart';
 
 class TimelinePage extends StatefulWidget {
-  const TimelinePage({super.key, required this.state, required this.filter});
+  const TimelinePage({
+    super.key,
+    required this.state,
+    required this.filter,
+    required this.captureButton,
+    required this.openOverview,
+    required this.openSettings,
+  });
   final AppState state;
   final TimelineFilter filter;
+  final Widget captureButton;
+  final VoidCallback openOverview, openSettings;
 
   @override
   State<TimelinePage> createState() => _TimelinePageState();
@@ -71,28 +80,25 @@ class _TimelinePageState extends State<TimelinePage> {
                   }
                 }),
               ),
+              IconButton(tooltip: 'ภาพรวม', icon: const Icon(Icons.calendar_month_outlined), onPressed: widget.openOverview),
+              IconButton(tooltip: 'ตั้งค่า', icon: const Icon(Icons.settings_outlined), onPressed: widget.openSettings),
             ],
           ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: widget.captureButton,
           body: RefreshIndicator(
             onRefresh: s.load,
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _Summary(state: s, now: now)),
-                SliverToBoxAdapter(child: _CategoryChips(state: s, filter: f)),
                 if (f.active)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
                       child: Row(children: [
                         if (f.day != null)
-                          InputChip(
-                            label: Text(fmtDate(f.day!)),
-                            avatar: const Icon(Icons.event, size: 18),
-                            onDeleted: () => f.set(clearDay: true),
-                            deleteButtonTooltipMessage: 'ล้างตัวกรองวันที่',
-                          ),
-                        const SizedBox(width: 8),
+                          Text('${fmtDate(f.day!)} · ', style: Theme.of(context).textTheme.bodySmall),
                         Text('${list.length} รายการ', style: Theme.of(context).textTheme.bodySmall),
                         const Spacer(),
                         TextButton(
@@ -120,7 +126,7 @@ class _TimelinePageState extends State<TimelinePage> {
                     hasScrollBody: false,
                     child: EmptyState(
                       icon: f.active ? Icons.filter_alt_off : Icons.edit_note,
-                      text: f.active ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีบันทึก\nกดปุ่ม "บันทึก" แล้วเล่าให้ AI ฟังได้เลย',
+                      text: f.active ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีบันทึก\nกดค้างที่ปุ่ม "กดค้างเพื่อคุย" แล้วเล่าให้ AI ฟังได้เลย',
                     ),
                   )
                 else ...[
@@ -208,15 +214,7 @@ class _Summary extends StatelessWidget {
     final next = (state.entries.where((e) => !e.hidden && (e.shownDate(now).isAfter(now) || (e.endDate != null && e.isUpcoming(now)))).toList()
           ..sort((a, b) => a.shownDate(now).compareTo(b.shownDate(now))))
         .firstOrNull;
-    final monthDays = state.entries
-        .where((e) => e.recurrence == null && e.date.year == now.year && e.date.month == now.month && !e.date.isAfter(now))
-        .map((e) => e.date)
-        .toSet()
-        .length;
-    final facts = [
-      if (birth != null) 'อายุ ${ageOn(birth.date, now)} ปี',
-      'บันทึกเดือนนี้ $monthDays วัน',
-    ];
+    final facts = [if (birth != null) 'อายุ ${ageOn(birth.date, now)} ปี'];
     final nextRel = next == null
         ? null
         : relativeLabel(next.shownDate(now), next.lastDate(now), now, isRange: next.endDate != null);
@@ -224,11 +222,10 @@ class _Summary extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(fmtDate(now), style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
-        const SizedBox(height: 2),
-        Text(facts.join(' · '), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+        if (facts.isNotEmpty)
+          Text(facts.join(' · '), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
         if (next != null) ...[
-          const SizedBox(height: 14),
+          if (facts.isNotEmpty) const SizedBox(height: 14),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -246,55 +243,3 @@ class _Summary extends StatelessWidget {
   }
 }
 
-class _CategoryChips extends StatelessWidget {
-  const _CategoryChips({required this.state, required this.filter});
-  final AppState state;
-  final TimelineFilter filter;
-
-  @override
-  Widget build(BuildContext context) {
-    final counts = <String, int>{};
-    for (final e in state.entries.where((e) => !e.hidden)) {
-      counts[e.category] = (counts[e.category] ?? 0) + 1;
-    }
-    final cats = counts.keys.toList()..sort((a, b) => counts[b]!.compareTo(counts[a]!));
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: FilterChip(
-              label: const Text('ทั้งหมด'),
-              selected: filter.cats == null,
-              onSelected: (_) => filter.set(clearCats: true),
-            ),
-          ),
-          for (final c in cats)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: GestureDetector(
-                // กดค้าง = เลือกหลายหมวด
-                onLongPress: () {
-                  final s = {...(filter.cats ?? cats.toSet())};
-                  s.contains(c) ? s.remove(c) : s.add(c);
-                  filter.set(cats: (s.isEmpty || s.length == cats.length) ? null : s, clearCats: true);
-                },
-                child: FilterChip(
-                  avatar: CircleAvatar(backgroundColor: state.category(c).color, radius: 5),
-                  label: Text('${state.category(c).label} ${counts[c]}'),
-                  selected: filter.cats?.contains(c) ?? false,
-                  onSelected: (_) {
-                    final solo = filter.cats?.length == 1 && filter.cats!.contains(c);
-                    filter.set(cats: solo ? null : {c}, clearCats: solo);
-                  },
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}

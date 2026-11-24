@@ -52,21 +52,6 @@ ThemeData buildAppTheme(Brightness b) {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: line)),
     ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: bg,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      height: 72,
-      indicatorColor: Colors.transparent,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      iconTheme: WidgetStateProperty.resolveWith((s) => IconThemeData(
-            size: 24,
-            color: s.contains(WidgetState.selected) ? scheme.onSurface : scheme.onSurfaceVariant,
-          )),
-      labelTextStyle: WidgetStateProperty.all(
-        TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: scheme.onSurface),
-      ),
-    ),
     chipTheme: ChipThemeData(
       backgroundColor: Colors.transparent,
       selectedColor: scheme.onSurface,
