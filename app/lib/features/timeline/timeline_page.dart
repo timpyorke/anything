@@ -223,8 +223,10 @@ class _Summary extends StatelessWidget {
         ),
       StatTile(value: '$monthDays วัน', label: 'บันทึกเดือนนี้', sub: fmtMonthYear(now)),
     ];
+    // ความสูงตามขนาดตัวอักษรของระบบ — กันการ์ดสรุปล้นทับรายการด้านล่าง
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
     return SizedBox(
-      height: 96,
+      height: 100 * scale,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),

@@ -57,19 +57,21 @@ class _OverviewPageState extends State<OverviewPage> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
             children: [
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 2.3,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                children: [
-                  StatTile(value: '${past.length} วัน', label: 'วันที่มีบันทึก ($year)'),
-                  StatTile(value: '$best วัน', label: 'บันทึกต่อเนื่องนานสุด'),
-                  StatTile(value: '${s.entries.where((e) => !e.hidden).length}', label: 'รายการทั้งหมด'),
-                  StatTile(value: '$planned วัน', label: 'มีแผนล่วงหน้า'),
-                ],
+              // สูงตามเนื้อหา (ไม่ล็อกอัตราส่วน) กันข้อความล้นเมื่อป้ายยาวหรือผู้ใช้ขยายตัวอักษร
+              IntrinsicHeight(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(child: StatTile(value: '${past.length} วัน', label: 'วันที่มีบันทึก ($year)')),
+                  const SizedBox(width: 8),
+                  Expanded(child: StatTile(value: '$best วัน', label: 'บันทึกต่อเนื่องนานสุด')),
+                ]),
+              ),
+              const SizedBox(height: 8),
+              IntrinsicHeight(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(child: StatTile(value: '${s.entries.where((e) => !e.hidden).length}', label: 'รายการทั้งหมด')),
+                  const SizedBox(width: 8),
+                  Expanded(child: StatTile(value: '$planned วัน', label: 'มีแผนล่วงหน้า')),
+                ]),
               ),
               const SizedBox(height: 12),
               Card(

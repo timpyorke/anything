@@ -21,7 +21,7 @@ class StatTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(label, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            Text(label, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
             if (sub != null)
               Text(sub!, style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
           ]),
