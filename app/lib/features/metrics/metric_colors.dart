@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 
 const _seriesColors = [
-  Color(0xff2f62e0), Color(0xff17825a), Color(0xffb05a0c), Color(0xff7c3aed),
-  Color(0xffc0306a), Color(0xff3a7682), Color(0xff846400), Color(0xffc0392b),
+  Color(0xff3e63dd), Color(0xff30a46c), Color(0xfff76b15), Color(0xff8e4ec6),
+  Color(0xffd6409f), Color(0xff12a594), Color(0xffb7791f), Color(0xffe5484d),
 ];
 
 /// สีผูกกับชื่อ metric — เพิ่ม metric ใหม่แล้วสีเดิมไม่เปลี่ยน

@@ -32,9 +32,8 @@ class EntryCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: cat.color, width: 4))),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
               Text(rs != null ? fmtDay(shown) : fmtRange(e.date, e.endDate),

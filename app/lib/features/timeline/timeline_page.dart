@@ -226,7 +226,7 @@ class _Summary extends StatelessWidget {
     // ความสูงตามขนาดตัวอักษรของระบบ — กันการ์ดสรุปล้นทับรายการด้านล่าง
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
     return SizedBox(
-      height: 100 * scale,
+      height: 124 * scale,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),

@@ -45,13 +45,16 @@ class _MetricsPageState extends State<MetricsPage> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
                   children: [
-                    GridView.count(
-                      crossAxisCount: 2,
+                    GridView(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      childAspectRatio: 1.9,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
+                      // ความสูงตามขนาดตัวอักษรของระบบ ไม่ล็อกอัตราส่วน (กันข้อความล้น)
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        mainAxisExtent: 108 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0),
+                      ),
                       children: [
                         for (final k in keys)
                           StatTile(
