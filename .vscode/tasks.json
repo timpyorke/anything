@@ -1,0 +1,50 @@
+{
+  // Terminal → Run Task · ใช้ Flutter SDK จาก dart.flutterSdkPath ใน .vscode/settings.json
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "app: pub get",
+      "type": "shell",
+      "command": "${config:dart.flutterSdkPath}/bin/flutter pub get",
+      "options": { "cwd": "${workspaceFolder}/app" },
+      "problemMatcher": []
+    },
+    {
+      "label": "app: analyze",
+      "type": "shell",
+      "command": "${config:dart.flutterSdkPath}/bin/flutter analyze",
+      "options": { "cwd": "${workspaceFolder}/app" },
+      "problemMatcher": []
+    },
+    {
+      "label": "app: test",
+      "type": "shell",
+      "command": "${config:dart.flutterSdkPath}/bin/flutter test",
+      "options": { "cwd": "${workspaceFolder}/app" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "app: check (analyze + test)",
+      "dependsOn": ["app: analyze", "app: test"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "app: build apk (debug, arm64)",
+      "type": "shell",
+      "command": "${config:dart.flutterSdkPath}/bin/flutter build apk --debug --target-platform android-arm64 --dart-define-from-file=env.json",
+      "options": { "cwd": "${workspaceFolder}/app" },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "app: build ios simulator",
+      "type": "shell",
+      "command": "${config:dart.flutterSdkPath}/bin/flutter build ios --simulator --debug --dart-define-from-file=env.json",
+      "options": { "cwd": "${workspaceFolder}/app" },
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

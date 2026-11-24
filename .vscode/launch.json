@@ -1,0 +1,41 @@
+{
+  // กด F5 แล้วเลือก configuration · Flutter จะถามเลือกอุปกรณ์/simulator ที่มุมล่างขวา
+  // ก่อนรันแอปต้องมี app/env.json (คัดลอกจาก app/env.example.json แล้วใส่ค่า Supabase)
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "App (debug)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/app",
+      "program": "lib/main.dart",
+      "flutterMode": "debug",
+      "args": ["--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "App (profile)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/app",
+      "program": "lib/main.dart",
+      "flutterMode": "profile",
+      "args": ["--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "App (release)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/app",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": ["--dart-define-from-file=env.json"]
+    },
+    {
+      "name": "App tests",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/app",
+      "program": "test/"
+    }
+  ]
+}
