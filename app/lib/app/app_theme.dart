@@ -73,8 +73,12 @@ ThemeData buildAppTheme(Brightness b) {
       side: BorderSide(color: line),
       shape: const StadiumBorder(),
       showCheckmark: false,
-      labelStyle: TextStyle(fontSize: 13, color: scheme.onSurface),
-      secondaryLabelStyle: TextStyle(fontSize: 13, color: scheme.surface),
+      // ชิปที่เลือกพื้นเข้ม (onSurface) → ตัวอักษรต้องสว่าง ไม่งั้นมองไม่เห็น
+      labelStyle: WidgetStateTextStyle.resolveWith((s) => TextStyle(
+            fontSize: 13,
+            color: s.contains(WidgetState.selected) ? (dark ? scheme.surface : Colors.white) : scheme.onSurface,
+          )),
+      secondaryLabelStyle: TextStyle(fontSize: 13, color: dark ? scheme.surface : Colors.white),
       checkmarkColor: scheme.surface,
     ),
     inputDecorationTheme: InputDecorationTheme(
