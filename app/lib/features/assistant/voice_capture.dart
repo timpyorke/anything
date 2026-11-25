@@ -29,6 +29,27 @@ class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
   String _words = '';
   String? _speechError;
   double _startY = 0;
+  bool _typing = false;
+  final _text = TextEditingController();
+  final _focus = FocusNode();
+
+  void _openTyping() {
+    setState(() => _typing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+  }
+
+  void _closeTyping() {
+    _focus.unfocus();
+    setState(() => _typing = false);
+  }
+
+  Future<void> _submitText() async {
+    final text = _text.text.trim();
+    if (text.isEmpty) return;
+    _text.clear();
+    _closeTyping();
+    await _ask(text);
+  }
 
   void _toast(String msg) {
     ScaffoldMessenger.of(context)
@@ -124,6 +145,8 @@ class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
   @override
   void dispose() {
     _speech.cancel();
+    _text.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -160,29 +183,61 @@ class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
             ),
           ),
         ),
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        const SizedBox(width: 68), // เว้นซ้ายเท่าปุ่มกล้อง+ช่องว่าง เพื่อให้ปุ่มคุยอยู่กลางจอจริง
-        GestureDetector(
-          onLongPressStart: _start,
-          onLongPressMoveUpdate: _move,
-          onLongPressEnd: (_) => _end(),
-          onLongPressCancel: _end,
-          child: FloatingActionButton.extended(
-            heroTag: 'voice_capture',
-            onPressed: () => _toast('กดค้างที่ปุ่ม แล้วพูดได้เลย'),
-            icon: Icon(_listening ? Icons.mic : Icons.auto_awesome),
-            label: Text(_listening ? 'กำลังฟัง…' : 'กดค้างเพื่อคุย'),
+      if (_typing)
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 32),
+          child: Material(
+            elevation: 3,
+            color: scheme.surfaceContainerHigh,
+            shape: const StadiumBorder(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 4, 4),
+              child: Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _text,
+                    focusNode: _focus,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _submitText(),
+                    decoration: const InputDecoration(
+                      hintText: 'พิมพ์เล่าอะไรก็ได้…',
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                IconButton(icon: const Icon(Icons.close), tooltip: 'ปิด', onPressed: _closeTyping),
+                IconButton.filled(icon: const Icon(Icons.arrow_upward), tooltip: 'ส่ง', onPressed: _submitText),
+              ]),
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        FloatingActionButton(
-          heroTag: 'camera_capture',
-          shape: const CircleBorder(),
-          tooltip: 'กล้อง',
-          onPressed: () => _toast('ฟีเจอร์กล้องกำลังมาเร็วๆ นี้'),
-          child: const Icon(Icons.photo_camera_outlined),
-        ),
-      ]),
+        )
+      else
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(width: 68), // เว้นซ้ายเท่าปุ่มกล้อง+ช่องว่าง เพื่อให้ปุ่มคุยอยู่กลางจอจริง
+          GestureDetector(
+            onLongPressStart: _start,
+            onLongPressMoveUpdate: _move,
+            onLongPressEnd: (_) => _end(),
+            onLongPressCancel: _end,
+            child: FloatingActionButton.extended(
+              heroTag: 'voice_capture',
+              onPressed: _openTyping,
+              icon: Icon(_listening ? Icons.mic : Icons.edit_outlined),
+              label: Text(_listening ? 'กำลังฟัง…' : 'พิมพ์ หรือกดค้างเพื่อคุย'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'camera_capture',
+            shape: const CircleBorder(),
+            tooltip: 'กล้อง',
+            onPressed: () => _toast('ฟีเจอร์กล้องกำลังมาเร็วๆ นี้'),
+            child: const Icon(Icons.photo_camera_outlined),
+          ),
+        ]),
     ]);
   }
 }
