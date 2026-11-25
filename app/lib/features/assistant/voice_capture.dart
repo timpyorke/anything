@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 
-import '../../ai/ai_settings.dart';
 import 'assistant_page.dart';
 import 'turn_view_model.dart';
+import 'voice_view_model.dart';
 
 /// ปุ่มหน้าแรก: กดค้างแล้วพูด → ปล่อยเพื่อส่งให้ AI → ผลขึ้นเป็น bottom sheet ให้ยืนยัน
 /// เลื่อนนิ้วขึ้นก่อนปล่อยเพื่อยกเลิก
@@ -19,16 +17,10 @@ class AnythingButton extends ConsumerStatefulWidget {
 }
 
 class _AnythingButtonState extends ConsumerState<AnythingButton> {
-  static const _cancelDistance = 90.0;
-
-  final _speech = SpeechToText();
-  bool _ready = false, _pressing = false, _listening = false, _cancel = false;
-  String _words = '';
-  String? _speechError;
-  double _startY = 0;
   bool _typing = false;
   final _text = TextEditingController();
   final _focus = FocusNode();
+  late final _vm = ref.read(voiceViewModelProvider.notifier);
 
   void _openTyping() {
     setState(() => _typing = true);
@@ -43,9 +35,10 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
   Future<void> _submitText() async {
     final text = _text.text.trim();
     if (text.isEmpty) return;
+    final nav = Navigator.of(context), messenger = ScaffoldMessenger.of(context);
     _text.clear();
     _closeTyping();
-    await _ask(text);
+    await _ask(text, nav, messenger);
   }
 
   void _toast(String msg) {
@@ -55,84 +48,22 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
   }
 
   Future<void> _start(LongPressStartDetails d) async {
-    _pressing = true;
-    _startY = d.globalPosition.dy;
-    HapticFeedback.mediumImpact();
-    // ยังไม่ตั้งค่า AI → ถามก่อน อย่าให้ผู้ใช้พูดเสียเปล่า
-    if (await ref.read(aiSettingsProvider.notifier).resolveProvider() == null) {
-      _pressing = false;
-      if (mounted) await ensureLlmProvider(context, ref);
-      return;
-    }
-    if (!_ready) {
-      try {
-        _ready = await _speech.initialize(onError: (e) => _speechError = e.errorMsg);
-      } on MissingPluginException {
-        // ปลั๊กอิน native ยังไม่ถูก build รวมเข้าแอป (ต้องรัน build ใหม่ทั้งหมด)
-        _ready = false;
-      }
-    }
-    if (!mounted) return;
-    if (!_ready) {
-      _pressing = false;
-      _toast('ใช้ไมโครโฟน/รู้จำเสียงไม่ได้ ตรวจสิทธิ์ในการตั้งค่าเครื่อง');
-      return;
-    }
-    if (!_pressing) return; // ปล่อยนิ้วไปก่อนเริ่มฟังพร้อม
-    _speechError = null;
-    setState(() {
-      _listening = true;
-      _cancel = false;
-      _words = '';
-    });
-    await _speech.listen(
-      onResult: (r) {
-        if (mounted) setState(() => _words = r.recognizedWords);
-      },
-      listenOptions: SpeechListenOptions(
-        localeId: 'th_TH',
-        listenFor: const Duration(minutes: 2),
-        pauseFor: const Duration(seconds: 30),
-        onDevice: true,
-        partialResults: true,
-        listenMode: ListenMode.dictation,
-      ),
-    );
-  }
-
-  void _move(LongPressMoveUpdateDetails d) {
-    if (!_listening) return;
-    final cancel = _startY - d.globalPosition.dy > _cancelDistance;
-    if (cancel != _cancel) {
-      HapticFeedback.selectionClick();
-      setState(() => _cancel = cancel);
-    }
+    final nav = Navigator.of(context);
+    if (await _vm.start(d.globalPosition.dy) == VoiceStart.needsSetup) await ensureLlmProvider(nav, ref);
   }
 
   Future<void> _end() async {
-    _pressing = false;
-    if (!_listening) return;
-    await _speech.stop();
-    await Future<void>.delayed(const Duration(milliseconds: 350)); // รอผลสุดท้ายของคำสุดท้าย
-    if (!mounted) return;
-    final text = _words.trim(), cancelled = _cancel;
-    setState(() => _listening = false);
-    if (cancelled) return;
-    if (text.isEmpty) {
-      _toast(_speechError == null
-          ? 'ไม่ได้ยินเสียง กดค้างแล้วพูดใหม่ได้เลย'
-          : 'รู้จำเสียงในเครื่องไม่ได้ ($_speechError) — ตรวจว่าติดตั้งภาษาไทยสำหรับพิมพ์/สั่งงานด้วยเสียงแล้ว');
-      return;
-    }
-    await _ask(text);
+    final nav = Navigator.of(context), messenger = ScaffoldMessenger.of(context);
+    final text = await _vm.finish();
+    if (text != null) await _ask(text, nav, messenger);
   }
 
-  Future<void> _ask(String text) async {
-    final provider = await ensureLlmProvider(context, ref);
-    if (provider == null || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _ask(String text, NavigatorState nav, ScaffoldMessengerState messenger) async {
+    final provider = await ensureLlmProvider(nav, ref);
+    if (provider == null) return;
     await showModalBottomSheet<void>(
-      context: context,
+      // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
+      context: nav.context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _ResultSheet(text: text, messenger: messenger),
@@ -141,7 +72,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
 
   @override
   void dispose() {
-    _speech.cancel();
+    _vm.abort();
     _text.dispose();
     _focus.dispose();
     super.dispose();
@@ -149,31 +80,35 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(voiceViewModelProvider.select((v) => v.notice), (_, notice) {
+      if (notice != null) _toast(notice);
+    });
+    final v = ref.watch(voiceViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
     return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      if (_listening)
+      if (v.listening)
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 40),
             child: Card(
               margin: EdgeInsets.zero,
-              color: _cancel ? scheme.errorContainer : null,
+              color: v.cancel ? scheme.errorContainer : null,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(
-                    _words.isEmpty ? 'กำลังฟัง… พูดได้เลย' : _words,
+                    v.words.isEmpty ? 'กำลังฟัง… พูดได้เลย' : v.words,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: _words.isEmpty ? scheme.onSurfaceVariant : null,
+                          color: v.words.isEmpty ? scheme.onSurfaceVariant : null,
                         ),
                     maxLines: 6,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _cancel ? 'ปล่อยเพื่อยกเลิก' : 'ปล่อยเพื่อส่ง · เลื่อนขึ้นเพื่อยกเลิก',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: _cancel ? scheme.error : null),
+                    v.cancel ? 'ปล่อยเพื่อยกเลิก' : 'ปล่อยเพื่อส่ง · เลื่อนขึ้นเพื่อยกเลิก',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: v.cancel ? scheme.error : null),
                   ),
                 ]),
               ),
@@ -216,14 +151,14 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
           const SizedBox(width: 68), // เว้นซ้ายเท่าปุ่มกล้อง+ช่องว่าง เพื่อให้ปุ่มคุยอยู่กลางจอจริง
           GestureDetector(
             onLongPressStart: _start,
-            onLongPressMoveUpdate: _move,
+            onLongPressMoveUpdate: (d) => _vm.move(d.globalPosition.dy),
             onLongPressEnd: (_) => _end(),
             onLongPressCancel: _end,
             child: FloatingActionButton.extended(
               heroTag: 'voice_capture',
               onPressed: _openTyping,
-              icon: Icon(_listening ? Icons.mic : Icons.edit_outlined),
-              label: Text(_listening ? 'กำลังฟัง…' : 'พิมพ์ หรือกดค้างเพื่อคุย'),
+              icon: Icon(v.listening ? Icons.mic : Icons.edit_outlined),
+              label: Text(v.listening ? 'กำลังฟัง…' : 'พิมพ์ หรือกดค้างเพื่อคุย'),
             ),
           ),
           const SizedBox(width: 12),
@@ -245,11 +180,12 @@ class _ResultSheet extends ConsumerWidget {
   final ScaffoldMessengerState messenger;
 
   Future<void> _apply(BuildContext context, WidgetRef ref) async {
+    final navigator = Navigator.of(context);
     final vm = ref.read(turnViewModelProvider(text).notifier);
     final n = await vm.apply();
     if (ref.read(turnViewModelProvider(text)).applied) {
       messenger.showSnackBar(SnackBar(content: Text('บันทึกแล้ว $n รายการ')));
-      if (context.mounted) Navigator.pop(context);
+      navigator.pop();
     }
   }
 

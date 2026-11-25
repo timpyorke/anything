@@ -10,13 +10,17 @@ import 'recorder.dart';
 import 'turn_view_model.dart';
 
 /// คืน provider ที่พร้อมใช้ ถ้ายังไม่ตั้งค่าจะถามว่าจะไปหน้าตั้งค่าไหม
-Future<LlmProvider?> ensureLlmProvider(BuildContext context, WidgetRef ref) async {
+///
+/// รับ [nav] (เก็บจาก `Navigator.of(context)` ก่อน await) แทน BuildContext — context ของ Navigator
+/// อยู่ตลอดอายุแอป จึงใช้แสดง dialog/push หน้าหลัง await ได้โดยไม่ต้องเช็ก mounted
+Future<LlmProvider?> ensureLlmProvider(NavigatorState nav, WidgetRef ref) async {
   final settings = ref.read(aiSettingsProvider.notifier);
-  final p = await settings.resolveProvider();
-  if (p != null || !context.mounted) return p;
   final kind = ref.read(aiSettingsProvider).provider;
+  final p = await settings.resolveProvider();
+  if (p != null) return p;
   final setUp = await showDialog<bool>(
-    context: context,
+    // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
+    context: nav.context,
     builder: (c) => AlertDialog(
       title: const Text('ยังไม่ได้ตั้งค่า AI'),
       content: Text(kind == AiProviderKind.aiStudio
@@ -28,8 +32,8 @@ Future<LlmProvider?> ensureLlmProvider(BuildContext context, WidgetRef ref) asyn
       ],
     ),
   );
-  if (setUp == true && context.mounted) {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+  if (setUp == true) {
+    await nav.push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
   return null;
 }

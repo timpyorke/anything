@@ -63,13 +63,26 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
       ).then((d) => d == null ? null : dayOf(d));
 
   Future<void> _save() async {
-    final ok = await _vm.save(
+    await _vm.save(
       title: _title.text,
       body: _body.text,
       times: _times.text,
       metrics: [for (final (key, c) in _metricCtrls) (key, c.text)],
     );
-    if (ok && mounted) Navigator.pop(context, true);
+  }
+
+  /// ปิดหน้าเมื่อ ViewModel แจ้งว่าบันทึก/ลบเสร็จ — รันใน listener จึงใช้ context ได้โดยไม่ต้องเช็ก mounted
+  void _onExit(EditorExit? exit) {
+    if (exit == null) return;
+    if (exit == EditorExit.deleted) {
+      final entry = ref.read(entryEditorViewModelProvider(_args)).entry;
+      final diary = ref.read(diaryViewModelProvider.notifier);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('ลบแล้ว'),
+        action: SnackBarAction(label: 'เลิกทำ', onPressed: () => diary.undoDelete(entry)),
+      ));
+    }
+    Navigator.pop(context, true);
   }
 
   Future<void> _delete() async {
@@ -85,19 +98,12 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
         ],
       ),
     );
-    if (ok != true || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final vm = _vm;
-    await vm.delete();
-    messenger.showSnackBar(SnackBar(
-      content: const Text('ลบแล้ว'),
-      action: SnackBarAction(label: 'เลิกทำ', onPressed: vm.undoDelete),
-    ));
-    if (mounted) Navigator.pop(context, true);
+    if (ok == true) await _vm.delete();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(entryEditorViewModelProvider(_args).select((s) => s.exit), (_, exit) => _onExit(exit));
     final s = ref.watch(diaryViewModelProvider);
     final st = ref.watch(entryEditorViewModelProvider(_args));
     final e = st.entry, vm = _vm;

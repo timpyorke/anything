@@ -79,10 +79,11 @@ class EntryCard extends ConsumerWidget {
   }
 
   Future<void> _toggle(BuildContext context, WidgetRef ref, int index, bool done) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(diaryViewModelProvider.notifier).toggleCheck(entry, index, done);
     } catch (err) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $err')));
+      messenger.showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $err')));
     }
   }
 }

@@ -45,25 +45,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (ok == true) await _vm.downloadGemma();
   }
 
-  Future<void> _saveKey() async {
-    await ref.read(aiSettingsProvider.notifier).setStudioKey(_key.text);
+  void _saveKey() {
+    final key = _key.text;
     _key.clear();
-    if (mounted) {
-      FocusScope.of(context).unfocus();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึก API key แล้ว (เก็บในเครื่องเท่านั้น)')));
-    }
+    FocusScope.of(context).unfocus();
+    _vm.saveKey(key);
   }
 
   Future<void> _import() async {
     final picked = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
     if (picked == null) return;
-    final message = await _vm.importFile(await picked.readAsBytes());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    await _vm.importFile(await picked.readAsBytes());
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(settingsViewModelProvider.select((s) => s.notice), (_, notice) {
+      if (notice != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
+    });
     final scheme = Theme.of(context).colorScheme;
     final user = ref.watch(supabaseClientProvider).auth.currentUser;
     final ai = ref.watch(aiSettingsProvider);
@@ -163,8 +162,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 title: Text(user?.email ?? '-'),
                 trailing: TextButton(
                   onPressed: () async {
+                    final nav = Navigator.of(context);
                     await ref.read(supabaseClientProvider).auth.signOut();
-                    if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+                    nav.popUntil((r) => r.isFirst);
                   },
                   child: const Text('ออกจากระบบ'),
                 ),

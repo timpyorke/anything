@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../ai/ai_settings.dart';
 import '../../ai/on_device_provider.dart';
 import '../diary/diary_view_model.dart';
 
@@ -16,6 +17,7 @@ abstract class SettingsState with _$SettingsState {
     int? progress, // เปอร์เซ็นต์ดาวน์โหลด, null = ไม่ได้โหลดอยู่
     String? gemmaError,
     @Default(false) bool importing,
+    String? notice, // ข้อความแจ้งผู้ใช้ครั้งเดียว (View ฟังผ่าน ref.listen แล้วแสดง snackbar)
   }) = _SettingsState;
 }
 
@@ -54,17 +56,23 @@ class SettingsViewModel extends Notifier<SettingsState> {
     await checkGemma();
   }
 
-  /// นำเข้าไฟล์ export ของระบบเดิม คืนข้อความสรุปให้ view แสดง
-  Future<String> importFile(Uint8List bytes) async {
-    state = state.copyWith(importing: true);
+  Future<void> saveKey(String key) async {
+    state = state.copyWith(notice: null);
+    await ref.read(aiSettingsProvider.notifier).setStudioKey(key);
+    state = state.copyWith(notice: 'บันทึก API key แล้ว (เก็บในเครื่องเท่านั้น)');
+  }
+
+  /// นำเข้าไฟล์ export ของระบบเดิม ผลสรุปอยู่ที่ state.notice
+  Future<void> importFile(Uint8List bytes) async {
+    state = state.copyWith(importing: true, notice: null);
+    String notice;
     try {
       final data = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
       final n = await ref.read(diaryViewModelProvider.notifier).importExport(data);
-      return n == 0 ? 'ไม่มีรายการใหม่ (นำเข้าครบแล้ว)' : 'นำเข้าแล้ว $n รายการ';
+      notice = n == 0 ? 'ไม่มีรายการใหม่ (นำเข้าครบแล้ว)' : 'นำเข้าแล้ว $n รายการ';
     } catch (e) {
-      return 'นำเข้าไม่สำเร็จ: $e';
-    } finally {
-      state = state.copyWith(importing: false);
+      notice = 'นำเข้าไม่สำเร็จ: $e';
     }
+    state = state.copyWith(importing: false, notice: notice);
   }
 }

@@ -16,7 +16,8 @@ abstract class AuthFormState with _$AuthFormState {
   }) = _AuthFormState;
 }
 
-final authViewModelProvider = NotifierProvider.autoDispose<AuthViewModel, AuthFormState>(AuthViewModel.new);
+/// ไม่ใช่ autoDispose: ล็อกอินสำเร็จแล้วหน้านี้ถูกแทนที่ระหว่างที่ submit ยังรออยู่ provider ต้องยังอยู่ให้ตั้ง state ได้
+final authViewModelProvider = NotifierProvider<AuthViewModel, AuthFormState>(AuthViewModel.new);
 
 class AuthViewModel extends Notifier<AuthFormState> {
   @override
@@ -51,7 +52,6 @@ class AuthViewModel extends Notifier<AuthFormState> {
     } catch (e) {
       error = 'เชื่อมต่อไม่ได้: $e';
     }
-    // ถ้าล็อกอินสำเร็จ หน้านี้ถูกแทนที่แล้ว (provider autoDispose) จึงไม่ต้องอัปเดต
-    if (ref.mounted) state = state.copyWith(busy: false, error: error, info: info);
+    state = state.copyWith(busy: false, error: error, info: info);
   }
 }

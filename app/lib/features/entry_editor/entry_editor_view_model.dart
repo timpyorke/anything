@@ -15,6 +15,9 @@ abstract class EditorArgs with _$EditorArgs {
   const factory EditorArgs({Entry? entry, @Default(false) bool draft}) = _EditorArgs;
 }
 
+/// เหตุการณ์ครั้งเดียวที่ View ต้องตอบสนองด้วยการปิดหน้า (ฟังผ่าน ref.listen)
+enum EditorExit { saved, deleted }
+
 @freezed
 abstract class EntryEditorState with _$EntryEditorState {
   const EntryEditorState._();
@@ -25,6 +28,7 @@ abstract class EntryEditorState with _$EntryEditorState {
     @Default(<String>[]) List<String> errors,
     @Default(false) bool saving,
     @Default(false) bool draft,
+    EditorExit? exit,
   }) = _EntryEditorState;
 
   bool get isNew => entry.id == null;
@@ -54,9 +58,9 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
   void setEvery(String? every) =>
       state = state.copyWith(every: every, entry: every == null ? state.entry : state.entry.copyWith(endDate: null));
 
-  /// รวมค่าจากฟอร์ม ตรวจ แล้วบันทึก คืน true ถ้าสำเร็จ
+  /// รวมค่าจากฟอร์ม ตรวจ แล้วบันทึก — สำเร็จแล้วตั้ง state.exit = saved
   /// [metrics] = (key, ข้อความที่พิมพ์) ของช่องตัวเลข
-  Future<bool> save({
+  Future<void> save({
     required String title,
     required String body,
     required String times,
@@ -79,19 +83,20 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
       errors.add('มีบันทึกรายวันของ ${fmtDate(out.date)} อยู่แล้ว — เปิดรายการนั้นเพื่อแก้แทน');
     }
     state = state.copyWith(errors: errors);
-    if (errors.isNotEmpty) return false;
+    if (errors.isNotEmpty) return;
     state = state.copyWith(saving: true);
     try {
       await ref.read(diaryViewModelProvider.notifier).save(out);
-      return true;
+      state = state.copyWith(exit: EditorExit.saved);
     } catch (err) {
       state = state.copyWith(errors: ['บันทึกไม่สำเร็จ: $err']);
-      return false;
     } finally {
       state = state.copyWith(saving: false);
     }
   }
 
-  Future<void> delete() => ref.read(diaryViewModelProvider.notifier).delete(state.entry);
-  Future<void> undoDelete() => ref.read(diaryViewModelProvider.notifier).undoDelete(state.entry);
+  Future<void> delete() async {
+    await ref.read(diaryViewModelProvider.notifier).delete(state.entry);
+    state = state.copyWith(exit: EditorExit.deleted);
+  }
 }
