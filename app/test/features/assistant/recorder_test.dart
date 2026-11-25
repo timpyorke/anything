@@ -1,14 +1,12 @@
 import 'dart:convert';
 import 'dart:ui' show Color;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:anything/ai/llm_provider.dart';
-import 'package:anything/data/repository.dart';
 import 'package:anything/domain/category.dart';
 import 'package:anything/domain/entry.dart';
 import 'package:anything/domain/metric.dart';
 import 'package:anything/features/assistant/recorder.dart';
-import 'package:anything/state/app_state.dart';
+import 'package:anything/features/diary/diary_state.dart';
 
 class FakeLlm implements LlmProvider {
   FakeLlm(this.reply);
@@ -27,17 +25,10 @@ class FakeLlm implements LlmProvider {
 
 void main() {
   final now = DateTime.utc(2026, 11, 24);
-  late AppState state;
+  late DiaryState state;
   late Entry trip, daily;
 
   setUp(() {
-    // ไม่มีการเรียกเครือข่าย: ใช้เฉพาะข้อมูลในหน่วยความจำ
-    state = AppState(Repository(SupabaseClient('http://localhost', 'test')));
-    state.categories = [
-      for (final k in ['milestone', 'finance', 'health', 'travel', 'daily'])
-        EntryCategory(key: k, label: k, color: const Color(0xff000000)),
-    ];
-    state.metricDefs = const [MetricDef(key: 'weight', label: 'น้ำหนัก', unit: 'kg'), MetricDef(key: 'sleep', label: 'การนอน', unit: 'ชม.')];
     trip = Entry(
       id: 'trip-id',
       date: DateTime.utc(2027, 1, 22),
@@ -47,7 +38,14 @@ void main() {
       body: '- [ ] ตั๋วเครื่องบิน\n- [ ] วีซ่า / เอกสารเดินทาง',
     );
     daily = Entry(id: 'daily-id', kind: 'daily', date: now, category: 'health', title: 'วัดร่างกาย', metrics: [const MetricValue('weight', 75, 'kg')]);
-    state.entries = [trip, daily];
+    state = DiaryState(
+      categories: [
+        for (final k in ['milestone', 'finance', 'health', 'travel', 'daily'])
+          EntryCategory(key: k, label: k, color: const Color(0xff000000)),
+      ],
+      metricDefs: const [MetricDef(key: 'weight', label: 'น้ำหนัก', unit: 'kg'), MetricDef(key: 'sleep', label: 'การนอน', unit: 'ชม.')],
+      entries: [trip, daily],
+    );
   });
 
   Future<AiResult> run(Map<String, Object?> reply) async {

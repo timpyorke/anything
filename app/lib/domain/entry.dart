@@ -1,35 +1,29 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../core/utils/dates.dart';
 import '../core/utils/markdown.dart';
 import 'metric.dart';
 import 'recurrence.dart';
 
-class Entry {
-  Entry({
-    this.id,
-    this.kind = 'event',
-    required this.date,
-    this.endDate,
-    required this.category,
-    this.title = '',
-    this.body = '',
-    this.recurrence,
-    this.source = 'manual',
-    this.legacyRef,
-    List<MetricValue>? metrics,
-  }) : metrics = metrics ?? [];
+part 'entry.freezed.dart';
 
-  final String? id;
-  String kind; // event | daily
-  DateTime date;
-  DateTime? endDate;
-  String category;
-  String title;
-  String body;
-  Recurrence? recurrence;
-  String source; // manual | ai | import
-  String? legacyRef;
-  List<MetricValue> metrics;
+@freezed
+abstract class Entry with _$Entry {
+  const Entry._();
+
+  const factory Entry({
+    String? id,
+    @Default('event') String kind, // event | daily
+    required DateTime date,
+    DateTime? endDate,
+    required String category,
+    @Default('') String title,
+    @Default('') String body,
+    Recurrence? recurrence,
+    @Default('manual') String source, // manual | ai | import
+    String? legacyRef,
+    @Default(<MetricValue>[]) List<MetricValue> metrics,
+  }) = _Entry;
 
   bool get isDaily => kind == 'daily';
   bool get hidden => title.trim().isEmpty && body.trim().isEmpty;
@@ -64,51 +58,4 @@ class Entry {
   }
 
   String get searchText => [title, body, category, ...metrics.map((m) => m.key)].join(' ').toLowerCase();
-
-  factory Entry.fromRow(Map<String, dynamic> r) => Entry(
-        id: r['id'] as String,
-        kind: r['kind'] as String,
-        date: parseYmd(r['date'] as String)!,
-        endDate: parseYmd(r['end_date'] as String?),
-        category: r['category'] as String,
-        title: (r['title'] as String?) ?? '',
-        body: (r['body'] as String?) ?? '',
-        recurrence: r['every'] == null
-            ? null
-            : Recurrence(r['every'] as String, times: r['times'] as int?, until: parseYmd(r['until'] as String?)),
-        source: (r['source'] as String?) ?? 'manual',
-        legacyRef: r['legacy_ref'] as String?,
-        metrics: [
-          for (final m in (r['metric_values'] as List? ?? const [])) MetricValue.fromRow(Map<String, dynamic>.from(m as Map)),
-        ],
-      );
-
-  /// แถวของตาราง entries (ไม่รวม metric_values)
-  Map<String, dynamic> toRow() => {
-        'kind': kind,
-        'date': ymd(date),
-        'end_date': endDate == null ? null : ymd(endDate!),
-        'category': category,
-        'title': title.trim(),
-        'body': body.trim(),
-        'every': recurrence?.every,
-        'times': recurrence?.times,
-        'until': recurrence?.until == null ? null : ymd(recurrence!.until!),
-        'source': source,
-        'legacy_ref': legacyRef,
-      };
-
-  Entry copy() => Entry(
-        id: id,
-        kind: kind,
-        date: date,
-        endDate: endDate,
-        category: category,
-        title: title,
-        body: body,
-        recurrence: recurrence,
-        source: source,
-        legacyRef: legacyRef,
-        metrics: [...metrics],
-      );
 }

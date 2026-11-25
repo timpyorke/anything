@@ -1,48 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/dates.dart';
 import '../../domain/entry.dart';
-import '../../domain/metric.dart';
-import '../../domain/recurrence.dart';
-import '../../state/app_state.dart';
+import '../diary/diary_view_model.dart';
+import 'entry_editor_view_model.dart';
 
 /// เปิดหน้าแก้ไข คืน true ถ้าบันทึกหรือลบแล้ว
 /// [draft] = รายการที่ AI เสนอ (ยังไม่อยู่ในฐานข้อมูลหรือยังไม่ได้บันทึกการแก้)
-Future<bool> openEditor(BuildContext context, AppState state, {Entry? entry, bool draft = false}) async {
+Future<bool> openEditor(BuildContext context, {Entry? entry, bool draft = false}) async {
   final saved = await Navigator.push<bool>(
     context,
-    MaterialPageRoute(fullscreenDialog: true, builder: (_) => EntryEditorPage(state: state, entry: entry, draft: draft)),
+    MaterialPageRoute(fullscreenDialog: true, builder: (_) => EntryEditorPage(entry: entry, draft: draft)),
   );
   return saved ?? false;
 }
 
-class EntryEditorPage extends StatefulWidget {
-  const EntryEditorPage({super.key, required this.state, this.entry, this.draft = false});
-  final AppState state;
+class EntryEditorPage extends ConsumerStatefulWidget {
+  const EntryEditorPage({super.key, this.entry, this.draft = false});
   final Entry? entry;
   final bool draft;
 
   @override
-  State<EntryEditorPage> createState() => _EntryEditorPageState();
+  ConsumerState<EntryEditorPage> createState() => _EntryEditorPageState();
 }
 
-class _EntryEditorPageState extends State<EntryEditorPage> {
-  late final Entry e;
+/// View: เก็บเฉพาะ TextEditingController (เรื่องของ widget) — ค่าอื่นและการบันทึกอยู่ที่ EntryEditorViewModel
+class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
   late final TextEditingController _title, _body, _times;
   final _metricCtrls = <(String, TextEditingController)>[];
-  String? _every;
-  bool _saving = false;
-  List<String> _errors = [];
 
-  bool get _isNew => e.id == null;
+  late final _args = EditorArgs(entry: widget.entry, draft: widget.draft);
+  EntryEditorViewModel get _vm => ref.read(entryEditorViewModelProvider(_args).notifier);
 
   @override
   void initState() {
     super.initState();
-    e = widget.entry?.copy() ?? Entry(date: today(), category: widget.state.categories.firstOrNull?.key ?? 'daily');
+    final e = ref.read(entryEditorViewModelProvider(_args)).entry;
     _title = TextEditingController(text: e.title);
     _body = TextEditingController(text: e.body);
-    _every = e.recurrence?.every;
     _times = TextEditingController(text: e.recurrence?.times?.toString() ?? '');
     for (final m in e.metrics) {
       _metricCtrls.add((m.key, TextEditingController(text: _fmt(m.value))));
@@ -66,40 +62,18 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
         lastDate: DateTime(2100),
       ).then((d) => d == null ? null : dayOf(d));
 
-  Entry _collect() {
-    final out = e.copy()
-      ..title = _title.text.trim()
-      ..body = _body.text.trim()
-      ..recurrence = _every == null ? null : Recurrence(_every!, times: int.tryParse(_times.text.trim()))
-      ..metrics = [
-        for (final (key, c) in _metricCtrls)
-          if (c.text.trim().isNotEmpty)
-            MetricValue(key, double.tryParse(c.text.trim().replaceAll(',', '')) ?? double.nan, widget.state.metricUnit(key)),
-      ];
-    if (out.isDaily) out.endDate = null;
-    return out;
-  }
-
   Future<void> _save() async {
-    final out = _collect();
-    final errors = widget.state.validate(out);
-    if (out.isDaily && _isNew && widget.state.dailyOn(out.date) != null) {
-      errors.add('มีบันทึกรายวันของ ${fmtDate(out.date)} อยู่แล้ว — เปิดรายการนั้นเพื่อแก้แทน');
-    }
-    setState(() => _errors = errors);
-    if (errors.isNotEmpty) return;
-    setState(() => _saving = true);
-    try {
-      await widget.state.save(out);
-      if (mounted) Navigator.pop(context, true);
-    } catch (err) {
-      if (mounted) setState(() => _errors = ['บันทึกไม่สำเร็จ: $err']);
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    final ok = await _vm.save(
+      title: _title.text,
+      body: _body.text,
+      times: _times.text,
+      metrics: [for (final (key, c) in _metricCtrls) (key, c.text)],
+    );
+    if (ok && mounted) Navigator.pop(context, true);
   }
 
   Future<void> _delete() async {
+    final e = ref.read(entryEditorViewModelProvider(_args)).entry;
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
@@ -113,40 +87,43 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
     );
     if (ok != true || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    await widget.state.delete(e);
+    final vm = _vm;
+    await vm.delete();
     messenger.showSnackBar(SnackBar(
       content: const Text('ลบแล้ว'),
-      action: SnackBarAction(label: 'เลิกทำ', onPressed: () => widget.state.undoDelete(e)),
+      action: SnackBarAction(label: 'เลิกทำ', onPressed: vm.undoDelete),
     ));
     if (mounted) Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.state;
+    final s = ref.watch(diaryViewModelProvider);
+    final st = ref.watch(entryEditorViewModelProvider(_args));
+    final e = st.entry, vm = _vm;
     final usedKeys = _metricCtrls.map((m) => m.$1).toSet();
     final freeMetrics = s.metricDefs.where((m) => !usedKeys.contains(m.key)).toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNew ? (widget.draft ? 'ตรวจก่อนบันทึก' : 'เพิ่มบันทึก') : 'แก้ไข'),
+        title: Text(st.isNew ? (st.draft ? 'ตรวจก่อนบันทึก' : 'เพิ่มบันทึก') : 'แก้ไข'),
         actions: [
-          if (!_isNew)
-            IconButton(tooltip: 'ลบ', icon: const Icon(Icons.delete_outline), onPressed: _saving ? null : _delete),
+          if (!st.isNew)
+            IconButton(tooltip: 'ลบ', icon: const Icon(Icons.delete_outline), onPressed: st.saving ? null : _delete),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(onPressed: _saving ? null : _save, child: const Text('บันทึก')),
+            child: FilledButton(onPressed: st.saving ? null : _save, child: const Text('บันทึก')),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (_errors.isNotEmpty)
+          if (st.errors.isNotEmpty)
             Card(
               color: Theme.of(context).colorScheme.errorContainer,
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text(_errors.join('\n'), style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
+                child: Text(st.errors.join('\n'), style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
               ),
             ),
           SegmentedButton<String>(
@@ -155,30 +132,30 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
               ButtonSegment(value: 'daily', label: Text('บันทึกรายวัน'), icon: Icon(Icons.today)),
             ],
             selected: {e.kind},
-            onSelectionChanged: (v) => setState(() => e.kind = v.first),
+            onSelectionChanged: (v) => vm.setKind(v.first),
           ),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(
               child: _DateField(
-                label: e.recurrence != null || _every != null ? 'เริ่ม' : 'วันที่',
+                label: st.every != null ? 'เริ่ม' : 'วันที่',
                 value: e.date,
                 onTap: () async {
                   final d = await _pick(e.date);
-                  if (d != null) setState(() => e.date = d);
+                  if (d != null) vm.setDate(d);
                 },
               ),
             ),
-            if (!e.isDaily && _every == null) ...[
+            if (!e.isDaily && st.every == null) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: _DateField(
                   label: 'ถึง (ถ้ามี)',
                   value: e.endDate,
-                  onClear: e.endDate == null ? null : () => setState(() => e.endDate = null),
+                  onClear: e.endDate == null ? null : () => vm.setEndDate(null),
                   onTap: () async {
                     final d = await _pick(e.endDate ?? e.date.add(const Duration(days: 1)));
-                    if (d != null) setState(() => e.endDate = d);
+                    if (d != null) vm.setEndDate(d);
                   },
                 ),
               ),
@@ -195,7 +172,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                   child: Row(children: [CircleAvatar(radius: 6, backgroundColor: c.color), const SizedBox(width: 10), Text(c.label)]),
                 ),
             ],
-            onChanged: (v) => setState(() => e.category = v ?? e.category),
+            onChanged: vm.setCategory,
           ),
           const SizedBox(height: 16),
           TextField(controller: _title, decoration: const InputDecoration(labelText: 'ชื่อ', border: OutlineInputBorder())),
@@ -254,7 +231,7 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
             Row(children: [
               Expanded(
                 child: DropdownButtonFormField<String?>(
-                  initialValue: _every,
+                  initialValue: st.every,
                   decoration: const InputDecoration(border: OutlineInputBorder()),
                   items: const [
                     DropdownMenuItem(value: null, child: Text('ไม่เกิดซ้ำ')),
@@ -263,13 +240,10 @@ class _EntryEditorPageState extends State<EntryEditorPage> {
                     DropdownMenuItem(value: 'yearly', child: Text('ทุกปี')),
                     DropdownMenuItem(value: 'daily', child: Text('ทุกวัน')),
                   ],
-                  onChanged: (v) => setState(() {
-                    _every = v;
-                    if (v != null) e.endDate = null;
-                  }),
+                  onChanged: vm.setEvery,
                 ),
               ),
-              if (_every != null) ...[
+              if (st.every != null) ...[
                 const SizedBox(width: 12),
                 SizedBox(
                   width: 120,

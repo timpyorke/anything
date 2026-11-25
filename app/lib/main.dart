@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,7 +23,7 @@ Future<void> main() async {
   }
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
   await FlutterEdgeAi.initialize(inferenceEngines: [LiteRtLmEngine()]);
-  final ai = AiSettings();
-  await ai.load();
-  runApp(AnythingApp(ai: ai));
+  final container = ProviderContainer();
+  await container.read(aiSettingsProvider.notifier).load();
+  runApp(UncontrolledProviderScope(container: container, child: const AnythingApp()));
 }

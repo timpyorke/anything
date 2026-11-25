@@ -1,39 +1,56 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../app/providers.dart';
+import 'ai_studio_provider.dart';
 import 'llm_provider.dart';
+import 'on_device_provider.dart';
+
+part 'ai_settings.freezed.dart';
+
+const defaultStudioModel = 'gemini-2.5-flash';
+
+@freezed
+abstract class AiSettingsState with _$AiSettingsState {
+  const factory AiSettingsState({
+    @Default(AiProviderKind.aiStudio) AiProviderKind provider,
+    @Default(defaultStudioModel) String studioModel,
+    @Default(false) bool hasStudioKey,
+    @Default(false) bool loaded,
+  }) = _AiSettingsState;
+}
+
+final aiSettingsProvider = NotifierProvider<AiSettingsViewModel, AiSettingsState>(AiSettingsViewModel.new);
 
 /// การตั้งค่า AI — เก็บใน Keychain/Keystore (API key ไม่อยู่ในโค้ดและไม่ส่งขึ้น Supabase)
-class AiSettings extends ChangeNotifier {
-  AiSettings([FlutterSecureStorage? storage]) : _storage = storage ?? const FlutterSecureStorage();
-  final FlutterSecureStorage _storage;
+class AiSettingsViewModel extends Notifier<AiSettingsState> {
+  @override
+  AiSettingsState build() => const AiSettingsState();
 
-  static const defaultStudioModel = 'gemini-2.5-flash';
-
-  AiProviderKind provider = AiProviderKind.aiStudio;
-  String studioModel = defaultStudioModel;
-  bool hasStudioKey = false;
-  bool loaded = false;
+  FlutterSecureStorage get _storage => ref.read(secureStorageProvider);
 
   Future<void> load() async {
     final p = await _storage.read(key: 'ai.provider');
-    provider = AiProviderKind.values.firstWhere((k) => k.id == p, orElse: () => AiProviderKind.aiStudio);
-    studioModel = await _storage.read(key: 'ai.studio.model') ?? defaultStudioModel;
-    hasStudioKey = (await _storage.read(key: 'ai.studio.key'))?.isNotEmpty ?? false;
-    loaded = true;
-    notifyListeners();
+    final model = await _storage.read(key: 'ai.studio.model');
+    final key = await _storage.read(key: 'ai.studio.key');
+    state = AiSettingsState(
+      provider: AiProviderKind.values.firstWhere((k) => k.id == p, orElse: () => AiProviderKind.aiStudio),
+      studioModel: model ?? defaultStudioModel,
+      hasStudioKey: key?.isNotEmpty ?? false,
+      loaded: true,
+    );
   }
 
   Future<void> setProvider(AiProviderKind k) async {
-    provider = k;
+    state = state.copyWith(provider: k);
     await _storage.write(key: 'ai.provider', value: k.id);
-    notifyListeners();
   }
 
   Future<void> setStudioModel(String m) async {
-    studioModel = m.trim().isEmpty ? defaultStudioModel : m.trim();
-    await _storage.write(key: 'ai.studio.model', value: studioModel);
-    notifyListeners();
+    final model = m.trim().isEmpty ? defaultStudioModel : m.trim();
+    state = state.copyWith(studioModel: model);
+    await _storage.write(key: 'ai.studio.model', value: model);
   }
 
   Future<void> setStudioKey(String? key) async {
@@ -43,9 +60,16 @@ class AiSettings extends ChangeNotifier {
     } else {
       await _storage.write(key: 'ai.studio.key', value: k);
     }
-    hasStudioKey = k.isNotEmpty;
-    notifyListeners();
+    state = state.copyWith(hasStudioKey: k.isNotEmpty);
   }
 
-  Future<String?> studioKey() => _storage.read(key: 'ai.studio.key');
+  /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด)
+  Future<LlmProvider?> resolveProvider() async {
+    if (state.provider == AiProviderKind.aiStudio) {
+      final key = await _storage.read(key: 'ai.studio.key');
+      if (key == null || key.isEmpty) return null;
+      return AiStudioProvider(apiKey: key, model: state.studioModel);
+    }
+    return await OnDeviceProvider.isInstalled() ? OnDeviceProvider() : null;
+  }
 }

@@ -1,30 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../ai/ai_settings.dart';
-import '../../ai/llm_provider.dart';
-import '../../state/app_state.dart';
 import 'assistant_page.dart';
+import 'turn_view_model.dart';
 
 /// ปุ่มหน้าแรก: กดค้างแล้วพูด → ปล่อยเพื่อส่งให้ AI → ผลขึ้นเป็น bottom sheet ให้ยืนยัน
 /// เลื่อนนิ้วขึ้นก่อนปล่อยเพื่อยกเลิก
 ///
 /// ใช้ระบบรู้จำเสียง "ในเครื่อง" เท่านั้น (onDevice) เพื่อไม่ส่งเสียงไปบริการภายนอก
-class VoiceCaptureButton extends StatefulWidget {
-  const VoiceCaptureButton({super.key, required this.state, required this.ai});
-  final AppState state;
-  final AiSettings ai;
+class AnythingButton extends ConsumerStatefulWidget {
+  const AnythingButton({super.key});
 
   @override
-  State<VoiceCaptureButton> createState() => _VoiceCaptureButtonState();
+  ConsumerState<AnythingButton> createState() => _AnythingButtonState();
 }
 
-class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
+class _AnythingButtonState extends ConsumerState<AnythingButton> {
   static const _cancelDistance = 90.0;
 
   final _speech = SpeechToText();
-  late final _runner = AssistantRunner(widget.state, widget.ai);
   bool _ready = false, _pressing = false, _listening = false, _cancel = false;
   String _words = '';
   String? _speechError;
@@ -62,9 +59,9 @@ class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
     _startY = d.globalPosition.dy;
     HapticFeedback.mediumImpact();
     // ยังไม่ตั้งค่า AI → ถามก่อน อย่าให้ผู้ใช้พูดเสียเปล่า
-    if (await _runner.provider() == null) {
+    if (await ref.read(aiSettingsProvider.notifier).resolveProvider() == null) {
       _pressing = false;
-      if (mounted) await _runner.ensureProvider(context);
+      if (mounted) await ensureLlmProvider(context, ref);
       return;
     }
     if (!_ready) {
@@ -131,14 +128,14 @@ class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
   }
 
   Future<void> _ask(String text) async {
-    final provider = await _runner.ensureProvider(context);
+    final provider = await ensureLlmProvider(context, ref);
     if (provider == null || !mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _ResultSheet(runner: _runner, provider: provider, turn: Turn(text), state: widget.state, messenger: messenger),
+      builder: (_) => _ResultSheet(text: text, messenger: messenger),
     );
   }
 
@@ -242,47 +239,28 @@ class _VoiceCaptureButtonState extends State<VoiceCaptureButton> {
   }
 }
 
-class _ResultSheet extends StatefulWidget {
-  const _ResultSheet({required this.runner, required this.provider, required this.turn, required this.state, required this.messenger});
-  final AssistantRunner runner;
-  final LlmProvider provider;
-  final Turn turn;
-  final AppState state;
+class _ResultSheet extends ConsumerWidget {
+  const _ResultSheet({required this.text, required this.messenger});
+  final String text;
   final ScaffoldMessengerState messenger;
 
-  @override
-  State<_ResultSheet> createState() => _ResultSheetState();
-}
-
-class _ResultSheetState extends State<_ResultSheet> {
-  @override
-  void initState() {
-    super.initState();
-    widget.runner.run(widget.provider, widget.turn).then((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  Future<void> _apply() async {
-    setState(() => widget.turn.busy = true);
-    final n = await widget.runner.apply(widget.turn);
-    if (!mounted) return;
-    if (widget.turn.applied) {
-      widget.messenger.showSnackBar(SnackBar(content: Text('บันทึกแล้ว $n รายการ')));
-      Navigator.pop(context);
-    } else {
-      setState(() {});
+  Future<void> _apply(BuildContext context, WidgetRef ref) async {
+    final vm = ref.read(turnViewModelProvider(text).notifier);
+    final n = await vm.apply();
+    if (ref.read(turnViewModelProvider(text)).applied) {
+      messenger.showSnackBar(SnackBar(content: Text('บันทึกแล้ว $n รายการ')));
+      if (context.mounted) Navigator.pop(context);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.75),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: TurnView(turn: widget.turn, state: widget.state, onApply: _apply, onChanged: () => setState(() {})),
+          child: TurnView(text: text, onApply: () => _apply(context, ref)),
         ),
       ),
     );

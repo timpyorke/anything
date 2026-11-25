@@ -1,51 +1,32 @@
-import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
-import '../../state/app_state.dart';
+import '../../app/providers.dart';
+import 'settings_view_model.dart';
 
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.state, required this.ai});
-  final AppState state;
-  final AiSettings ai;
+class SettingsPage extends ConsumerStatefulWidget {
+  const SettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
-  late final TextEditingController _model = TextEditingController(text: widget.ai.studioModel);
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  late final TextEditingController _model = TextEditingController(text: ref.read(aiSettingsProvider).studioModel);
   final _key = TextEditingController();
   bool _showKey = false;
-  bool? _gemmaInstalled;
-  int? _progress;
-  String? _gemmaError;
-  bool _importing = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkGemma();
-  }
+  SettingsViewModel get _vm => ref.read(settingsViewModelProvider.notifier);
 
   @override
   void dispose() {
     _model.dispose();
     _key.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkGemma() async {
-    try {
-      final ok = await OnDeviceProvider.isInstalled();
-      if (mounted) setState(() => _gemmaInstalled = ok);
-    } catch (e) {
-      if (mounted) setState(() => _gemmaError = '$e');
-    }
   }
 
   Future<void> _downloadGemma() async {
@@ -61,30 +42,11 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
-    if (ok != true) return;
-    setState(() {
-      _progress = 0;
-      _gemmaError = null;
-    });
-    try {
-      await OnDeviceProvider.install(onProgress: (p) {
-        if (mounted) setState(() => _progress = p);
-      });
-      if (mounted) setState(() => _gemmaInstalled = true);
-    } catch (e) {
-      if (mounted) setState(() => _gemmaError = 'ดาวน์โหลดไม่สำเร็จ: $e');
-    } finally {
-      if (mounted) setState(() => _progress = null);
-    }
-  }
-
-  Future<void> _removeGemma() async {
-    await OnDeviceProvider.uninstall();
-    await _checkGemma();
+    if (ok == true) await _vm.downloadGemma();
   }
 
   Future<void> _saveKey() async {
-    await widget.ai.setStudioKey(_key.text);
+    await ref.read(aiSettingsProvider.notifier).setStudioKey(_key.text);
     _key.clear();
     if (mounted) {
       FocusScope.of(context).unfocus();
@@ -95,38 +57,29 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _import() async {
     final picked = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
     if (picked == null) return;
-    setState(() => _importing = true);
-    String message;
-    try {
-      final data = jsonDecode(utf8.decode(await picked.readAsBytes())) as Map<String, dynamic>;
-      final n = await widget.state.repo.importExport(data);
-      await widget.state.load();
-      message = n == 0 ? 'ไม่มีรายการใหม่ (นำเข้าครบแล้ว)' : 'นำเข้าแล้ว $n รายการ';
-    } catch (e) {
-      message = 'นำเข้าไม่สำเร็จ: $e';
-    }
+    final message = await _vm.importFile(await picked.readAsBytes());
     if (!mounted) return;
-    setState(() => _importing = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = ref.watch(supabaseClientProvider).auth.currentUser;
+    final ai = ref.watch(aiSettingsProvider);
+    final aiVm = ref.read(aiSettingsProvider.notifier);
+    final st = ref.watch(settingsViewModelProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('ตั้งค่า')),
-      body: ListenableBuilder(
-        listenable: widget.ai,
-        builder: (context, _) {
-          final ai = widget.ai;
+      body: Builder(
+        builder: (context) {
           return ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
               const _Header('AI ที่ใช้บันทึก'),
               RadioGroup<AiProviderKind>(
                 groupValue: ai.provider,
-                onChanged: (v) => v == null ? null : ai.setProvider(v),
+                onChanged: (v) => v == null ? null : aiVm.setProvider(v),
                 child: Column(children: [
                   for (final k in AiProviderKind.values)
                     RadioListTile<AiProviderKind>(value: k, title: Text(k.label), subtitle: Text(k.description)),
@@ -158,7 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Row(children: [
                     FilledButton(onPressed: _saveKey, child: const Text('บันทึก key')),
                     const SizedBox(width: 8),
-                    if (ai.hasStudioKey) TextButton(onPressed: () => ai.setStudioKey(null), child: const Text('ลบ key')),
+                    if (ai.hasStudioKey) TextButton(onPressed: () => aiVm.setStudioKey(null), child: const Text('ลบ key')),
                   ]),
                 ),
                 Padding(
@@ -171,7 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       helperText: 'เช่น gemini-2.5-flash หรือ gemma-3-27b-it',
                       border: OutlineInputBorder(),
                     ),
-                    onChanged: ai.setStudioModel,
+                    onChanged: aiVm.setStudioModel,
                   ),
                 ),
               ],
@@ -179,20 +132,20 @@ class _SettingsPageState extends State<SettingsPage> {
                 ListTile(
                   leading: const Icon(Icons.memory),
                   title: const Text('Gemma 4 E2B (${OnDeviceProvider.sizeLabel})'),
-                  subtitle: Text(_gemmaError ??
-                      (_progress != null
-                          ? 'กำลังดาวน์โหลด $_progress%'
-                          : _gemmaInstalled == null
+                  subtitle: Text(st.gemmaError ??
+                      (st.progress != null
+                          ? 'กำลังดาวน์โหลด $st.progress%'
+                          : st.gemmaInstalled == null
                               ? 'กำลังตรวจสอบ…'
-                              : _gemmaInstalled!
+                              : st.gemmaInstalled!
                                   ? 'พร้อมใช้ — ทำงานในเครื่อง ไม่ต้องใช้เน็ต'
                                   : 'ยังไม่ได้ดาวน์โหลด'),
-                      style: _gemmaError == null ? null : TextStyle(color: scheme.error)),
-                  trailing: _progress != null
-                      ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(value: _progress! / 100, strokeWidth: 3))
-                      : _gemmaInstalled == true
-                          ? TextButton(onPressed: _removeGemma, child: const Text('ลบ'))
-                          : FilledButton(onPressed: _gemmaInstalled == null ? null : _downloadGemma, child: const Text('ดาวน์โหลด')),
+                      style: st.gemmaError == null ? null : TextStyle(color: scheme.error)),
+                  trailing: st.progress != null
+                      ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(value: st.progress! / 100, strokeWidth: 3))
+                      : st.gemmaInstalled == true
+                          ? TextButton(onPressed: _vm.removeGemma, child: const Text('ลบ'))
+                          : FilledButton(onPressed: st.gemmaInstalled == null ? null : _downloadGemma, child: const Text('ดาวน์โหลด')),
                 ),
               const Divider(height: 32),
               const _Header('ข้อมูล'),
@@ -200,8 +153,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: const Icon(Icons.file_upload_outlined),
                 title: const Text('นำเข้าจากระบบเดิม'),
                 subtitle: const Text('ไฟล์ JSON ที่ export จากระบบเดิม · นำเข้าซ้ำได้ ไม่สร้างรายการซ้ำ'),
-                trailing: _importing ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)) : null,
-                onTap: _importing ? null : _import,
+                trailing: st.importing ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)) : null,
+                onTap: st.importing ? null : _import,
               ),
               const Divider(height: 32),
               const _Header('บัญชี'),
@@ -210,7 +163,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: Text(user?.email ?? '-'),
                 trailing: TextButton(
                   onPressed: () async {
-                    await Supabase.instance.client.auth.signOut();
+                    await ref.read(supabaseClientProvider).auth.signOut();
                     if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
                   },
                   child: const Text('ออกจากระบบ'),

@@ -3,52 +3,64 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/category.dart';
 import '../domain/entry.dart';
 import '../domain/metric.dart';
+import '../domain/repositories/diary_repository.dart';
+import 'mappers/row_mappers.dart';
 
 /// ทุกการอ่าน/เขียน Supabase อยู่ที่นี่ที่เดียว (RLS กรองข้อมูลตามผู้ใช้ที่ล็อกอินให้แล้ว)
-class Repository {
-  Repository(this.db);
+class SupabaseDiaryRepository implements DiaryRepository {
+  SupabaseDiaryRepository(this.db);
   final SupabaseClient db;
 
   static const _entryColumns = '*, metric_values(key, value, unit)';
 
   /// ผู้ใช้ใหม่ยังไม่มีหมวด → สร้างค่าเริ่มต้นจากฟังก์ชันในฐานข้อมูล
+  @override
   Future<void> ensureDefaults() async {
     final rows = await db.from('categories').select('key').limit(1);
     if (rows.isEmpty) await db.rpc('seed_defaults');
   }
 
+  @override
   Future<List<EntryCategory>> categories() async =>
-      [for (final r in await db.from('categories').select().order('sort')) EntryCategory.fromRow(r)];
+      [for (final r in await db.from('categories').select().order('sort')) categoryFromRow(r)];
 
+  @override
   Future<List<MetricDef>> metricDefs() async =>
-      [for (final r in await db.from('metric_defs').select().order('key')) MetricDef.fromRow(r)];
+      [for (final r in await db.from('metric_defs').select().order('key')) metricDefFromRow(r)];
 
+  @override
   Future<List<Entry>> entries() async => [
         for (final r in await db.from('entries').select(_entryColumns).isFilter('deleted_at', null).order('date', ascending: false))
-          Entry.fromRow(r),
+          entryFromRow(r),
       ];
 
+  @override
   Future<Entry> insert(Entry e) async {
-    final row = await db.from('entries').insert(e.toRow()).select('id').single();
+    final row = await db.from('entries').insert(entryToRow(e)).select('id').single();
     final id = row['id'] as String;
     await _writeMetrics(id, e.metrics);
     return _fetch(id);
   }
 
+  @override
   Future<Entry> update(Entry e) async {
-    await db.from('entries').update(e.toRow()).eq('id', e.id!);
+    await db.from('entries').update(entryToRow(e)).eq('id', e.id!);
     await db.from('metric_values').delete().eq('entry_id', e.id!);
     await _writeMetrics(e.id!, e.metrics);
     return _fetch(e.id!);
   }
 
+  @override
   Future<void> softDelete(String id) =>
       db.from('entries').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
 
+  @override
   Future<void> restore(String id) => db.from('entries').update({'deleted_at': null}).eq('id', id);
 
-  Future<void> addMetricDef(MetricDef m) => db.from('metric_defs').insert(m.toRow());
+  @override
+  Future<void> addMetricDef(MetricDef m) => db.from('metric_defs').insert(metricDefToRow(m));
 
+  @override
   Future<void> logAi({
     required String provider,
     required String model,
@@ -67,6 +79,7 @@ class Repository {
       });
 
   /// นำเข้าข้อมูลจากไฟล์ export ของระบบ markdown เดิม (format life-dashboard-export) (ข้ามรายการที่ legacy_ref เคยนำเข้าแล้ว จึงรันซ้ำได้)
+  @override
   Future<int> importExport(Map<String, dynamic> data) async {
     if (data['format'] != 'life-dashboard-export' || data['version'] != 1) {
       throw const FormatException('ไม่ใช่ไฟล์ export ที่รองรับ (life-dashboard-export version 1)');
@@ -118,5 +131,5 @@ class Repository {
     ]);
   }
 
-  Future<Entry> _fetch(String id) async => Entry.fromRow(await db.from('entries').select(_entryColumns).eq('id', id).single());
+  Future<Entry> _fetch(String id) async => entryFromRow(await db.from('entries').select(_entryColumns).eq('id', id).single());
 }

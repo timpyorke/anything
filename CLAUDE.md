@@ -10,6 +10,15 @@ docs/       แผนและเอกสาร (mobile-migration.md)
 .vscode/    launch.json (รัน/ดีบัก), tasks.json, settings.json
 ```
 
+## สถาปัตยกรรม (app/lib) — Clean Architecture + MVVM, Riverpod + freezed
+- `domain/` entity (freezed, immutable) + `repositories/` (interface) + กฎ validate — ไม่รู้จัก Flutter UI/Supabase
+- `data/` implement repository (Supabase) + `mappers/` แปลงแถว DB ↔ entity
+- `app/providers.dart` provider ระดับ infrastructure (Supabase client, repository, storage, auth)
+- `features/<ชื่อ>/` = View (`*_page.dart`, ConsumerWidget) + ViewModel (`*_view_model.dart`, Notifier) + State (freezed) — View แค่ watch state แล้วเรียกเมธอดของ ViewModel
+- ข้อมูลของผู้ใช้ (diary, ตัวกรอง) ผูกกับ `currentUserIdProvider` จึงถูกสร้างใหม่เมื่อเปลี่ยนบัญชี
+- ทดสอบ ViewModel โดย override `diaryRepositoryProvider` ด้วย `test/support/fake_diary_repository.dart`
+- แก้ไฟล์ที่มี `@freezed` แล้วต้องรัน `dart run build_runner build` (ไฟล์ `*.freezed.dart` อยู่ใน .gitignore — clone ใหม่ต้องรันก่อน build/test)
+
 ## กฎ
 - กฎการตัดสินใจของ AI ในแอปอยู่ที่ `app/lib/features/assistant/recorder.dart` (พรอมต์ + ตรวจทุก action ก่อนแสดงผู้ใช้) — ถ้าแก้ ต้องแก้ test ใน `app/test/features/assistant/recorder_test.dart` ให้ตรง
 - ระบบ markdown เดิม (`legacy/`) ถูกลบแล้ว กู้ได้จาก git: `git show a4b6d1d:legacy/...` หรือ `git checkout a4b6d1d -- legacy`

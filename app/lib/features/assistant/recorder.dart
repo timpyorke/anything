@@ -7,21 +7,25 @@ import '../../domain/entry.dart';
 import '../../domain/entry_validation.dart';
 import '../../domain/metric.dart';
 import '../../domain/recurrence.dart';
-import '../../state/app_state.dart';
+import '../diary/diary_state.dart';
+import '../diary/diary_view_model.dart';
 
 /// สิ่งที่ AI เสนอให้ทำ 1 อย่าง — ผู้ใช้เห็นก่อนและเลือกได้ว่าจะบันทึกหรือไม่
 class ProposedAction {
-  ProposedAction({required this.type, required this.summary, this.detail = '', this.errors = const [], this.run, this.entry})
-      : selected = errors.isEmpty;
+  ProposedAction({required this.type, required this.summary, this.detail = '', this.errors = const [], this.run, this.entry, bool? selected})
+      : selected = selected ?? errors.isEmpty;
 
   final String type; // create | update | check | new_metric
   final String summary;
   final String detail;
   final List<String> errors;
-  final Future<void> Function(AppState state)? run;
+  final Future<void> Function(DiaryViewModel diary)? run;
   final Entry? entry; // สำหรับเปิดแก้ไขเองก่อนบันทึก
-  bool selected;
+  final bool selected;
   bool get valid => errors.isEmpty && run != null;
+
+  ProposedAction withSelected(bool value) =>
+      ProposedAction(type: type, summary: summary, detail: detail, errors: errors, run: run, entry: entry, selected: value);
 }
 
 class AiResult {
@@ -34,7 +38,7 @@ class AiResult {
 
 class Recorder {
   Recorder(this.state, {DateTime Function()? clock}) : _clock = clock ?? today;
-  final AppState state;
+  final DiaryState state;
   final DateTime Function() _clock;
 
   /// รหัสสั้น (R1, R2, …) แทน uuid ในพรอมต์ — ประหยัด token และ AI อ้าง id มั่วไม่ได้
@@ -198,22 +202,25 @@ update ใส่เฉพาะฟิลด์ที่เปลี่ยน · 
     // daily ของวันเดียวกันมีอยู่แล้ว → รวมเข้าไปแทนการสร้างใหม่
     final existingDaily = kind == 'daily' ? state.dailyOn(date) : null;
     if (existingDaily != null) {
-      final merged = existingDaily.copy()..source = existingDaily.source;
+      var merged = existingDaily;
       final changes = <String>[];
       for (final mv in metrics) {
         final old = merged.metrics.where((x) => x.key == mv.key).firstOrNull;
         if (old != null && old.value != mv.value) changes.add('${state.metricLabel(mv.key)} ${_num(old.value)} → ${_num(mv.value)}');
-        merged.metrics = [...merged.metrics.where((x) => x.key != mv.key), mv];
+        merged = merged.copyWith(metrics: [...merged.metrics.where((x) => x.key != mv.key), mv]);
       }
-      if (entry.body.isNotEmpty) merged.body = [merged.body, entry.body].where((s) => s.isNotEmpty).join('\n\n');
-      if (merged.title.isEmpty) merged.title = entry.title;
+      if (entry.body.isNotEmpty) {
+        merged = merged.copyWith(body: [merged.body, entry.body].where((s) => s.isNotEmpty).join('\n\n'));
+      }
+      if (merged.title.isEmpty) merged = merged.copyWith(title: entry.title);
+      final result = merged;
       return ProposedAction(
         type: 'update',
         summary: 'เพิ่มในบันทึกวันที่ ${fmtDate(date)}: ${_describeMetrics(metrics)}${entry.body.isEmpty ? '' : ' + โน้ต'}',
         detail: changes.isEmpty ? '' : 'แทนค่าเดิม: ${changes.join(', ')}',
         errors: errors,
-        entry: merged,
-        run: (s) => s.save(merged),
+        entry: result,
+        run: (s) => s.save(result),
       );
     }
 
@@ -243,20 +250,20 @@ update ใส่เฉพาะฟิลด์ที่เปลี่ยน · 
     final target = _target(m['ref']);
     if (target == null) return ProposedAction(type: 'update', summary: 'แก้ไขรายการ ${m['ref']}', errors: const ['ไม่พบรายการที่อ้างถึง']);
     final errors = <String>[];
-    final e = target.copy()..source = target.source;
+    var e = target;
     final changes = <String>[];
     if (m.containsKey('date') && m['date'] != null) {
       final d = _date(m['date'], errors, 'date');
       if (d != null && d != e.date) {
         changes.add('วันที่ ${fmtDate(e.date)} → ${fmtDate(d)}');
-        e.date = d;
+        e = e.copyWith(date: d);
       }
     }
     if (m.containsKey('end_date')) {
       final d = m['end_date'] == null ? null : _date(m['end_date'], errors, 'end_date');
       if (d != e.endDate) {
         changes.add('ถึงวันที่ → ${d == null ? 'ไม่มี' : fmtDate(d)}');
-        e.endDate = d;
+        e = e.copyWith(endDate: d);
       }
     }
     for (final f in ['title', 'body', 'category']) {
@@ -267,24 +274,25 @@ update ใส่เฉพาะฟิลด์ที่เปลี่ยน · 
         switch (f) {
           case 'title':
             changes.add('ชื่อ → ${v.trim()}');
-            e.title = v.trim();
+            e = e.copyWith(title: v.trim());
           case 'body':
             changes.add('แก้เนื้อหา');
-            e.body = v.trim();
+            e = e.copyWith(body: v.trim());
           case 'category':
             changes.add('หมวด → ${state.category(v.trim()).label}');
-            e.category = v.trim();
+            e = e.copyWith(category: v.trim());
         }
       }
     }
     errors.addAll(state.validate(e));
+    final updated = e;
     if (changes.isEmpty) errors.add('ไม่มีอะไรเปลี่ยน');
     return ProposedAction(
       type: 'update',
       summary: 'แก้ไข "${target.title}": ${changes.join(' · ')}',
       errors: errors,
-      entry: e,
-      run: (s) => s.save(e),
+      entry: updated,
+      run: (s) => s.save(updated),
     );
   }
 

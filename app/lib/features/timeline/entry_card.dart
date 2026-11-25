@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/dates.dart';
 import '../../core/utils/format.dart';
@@ -6,18 +7,19 @@ import '../../core/widgets/markdown_view.dart';
 import '../../core/widgets/pill.dart';
 import '../../domain/entry.dart';
 import '../../domain/recurrence.dart';
-import '../../state/app_state.dart';
+import '../diary/diary_state.dart';
+import '../diary/diary_view_model.dart';
 
 /// การ์ดรายการบน Timeline
-class EntryCard extends StatelessWidget {
-  const EntryCard({super.key, required this.entry, required this.state, required this.now, this.onTap});
+class EntryCard extends ConsumerWidget {
+  const EntryCard({super.key, required this.entry, required this.now, this.onTap});
   final Entry entry;
-  final AppState state;
   final DateTime now;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(diaryViewModelProvider);
     final e = entry;
     final cat = state.category(e.category);
     final scheme = Theme.of(context).colorScheme;
@@ -54,7 +56,7 @@ class EntryCard extends StatelessWidget {
               if (rs != null) _RecurrenceInfo(entry: e, rs: rs, state: state, color: cat.color),
               if (e.body.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                MarkdownView(e.body, accent: cat.color, onToggle: (i, done) => _toggle(context, i, done)),
+                MarkdownView(e.body, accent: cat.color, onToggle: (i, done) => _toggle(context, ref, i, done)),
               ],
               if (e.endDate != null || e.recurrence != null || (rs != null && rs.next == null) || cl != null || e.source == 'ai' || (rs == null && e.metrics.isNotEmpty)) ...[
                 const SizedBox(height: 8),
@@ -76,9 +78,9 @@ class EntryCard extends StatelessWidget {
     );
   }
 
-  Future<void> _toggle(BuildContext context, int index, bool done) async {
+  Future<void> _toggle(BuildContext context, WidgetRef ref, int index, bool done) async {
     try {
-      await state.toggleCheck(entry, index, done);
+      await ref.read(diaryViewModelProvider.notifier).toggleCheck(entry, index, done);
     } catch (err) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $err')));
     }
@@ -89,7 +91,7 @@ class _RecurrenceInfo extends StatelessWidget {
   const _RecurrenceInfo({required this.entry, required this.rs, required this.state, required this.color});
   final Entry entry;
   final RecState rs;
-  final AppState state;
+  final DiaryState state;
   final Color color;
 
   @override

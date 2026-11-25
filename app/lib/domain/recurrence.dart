@@ -1,12 +1,15 @@
 
+import 'package:freezed_annotation/freezed_annotation.dart';
+
 import '../core/utils/dates.dart';
 
+part 'recurrence.freezed.dart';
+
 /// รายการที่เกิดซ้ำ: daily/weekly/monthly/yearly หรือ 2w, 3m, 1y
-class Recurrence {
-  const Recurrence(this.every, {this.times, this.until});
-  final String every;
-  final int? times;
-  final DateTime? until;
+@freezed
+abstract class Recurrence with _$Recurrence {
+  const Recurrence._();
+  const factory Recurrence(String every, {int? times, DateTime? until}) = _Recurrence;
 
   static const words = {'daily': (1, 'd'), 'weekly': (1, 'w'), 'monthly': (1, 'm'), 'yearly': (1, 'y')};
   static const maxOccurrences = 1000;
