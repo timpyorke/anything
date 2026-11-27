@@ -79,9 +79,6 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
     );
     if (out.isDaily) out = out.copyWith(endDate: null);
     final errors = diary.validate(out);
-    if (out.isDaily && state.isNew && diary.dailyOn(out.date) != null) {
-      errors.add('มีบันทึกรายวันของ ${fmtDate(out.date)} อยู่แล้ว — เปิดรายการนั้นเพื่อแก้แทน');
-    }
     state = state.copyWith(errors: errors);
     if (errors.isNotEmpty) return;
     state = state.copyWith(saving: true);

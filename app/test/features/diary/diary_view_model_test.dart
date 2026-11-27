@@ -70,6 +70,13 @@ void main() {
     expect(container.read(diaryViewModelProvider).entries.single.category, 'pet');
   });
 
+  test('a day can hold several daily entries', () async {
+    final vm = container.read(diaryViewModelProvider.notifier);
+    await vm.save(Entry(kind: 'daily', date: now, category: 'daily', title: 'กินข้าว'));
+    await vm.save(Entry(kind: 'daily', date: now, category: 'health', title: 'ไปวิ่ง'));
+    expect(container.read(diaryViewModelProvider).entries, hasLength(2));
+  });
+
   test('addMetricDef adds to state', () async {
     await container.read(diaryViewModelProvider.notifier).addMetricDef(const MetricDef(key: 'water', label: 'น้ำ', unit: 'ml'));
     expect(container.read(diaryViewModelProvider).metricKeys, {'weight', 'water'});

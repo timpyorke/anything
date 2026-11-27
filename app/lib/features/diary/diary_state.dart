@@ -35,8 +35,6 @@ abstract class DiaryState with _$DiaryState {
 
   List<String> validate(Entry e) => validateEntry(e, categories: categoryKeys, metricKeys: metricKeys);
 
-  Entry? dailyOn(DateTime day) => entries.where((e) => e.isDaily && e.date == day).firstOrNull;
-
   Entry? byId(String id) => entries.where((e) => e.id == id).firstOrNull;
 
   Entry? get birth => entries

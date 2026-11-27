@@ -16,7 +16,7 @@
 - **คำศัพท์ควบคุม** — AI ใช้ได้เฉพาะหมวด/metric ที่มีอยู่; metric ใหม่ต้องเป็น action แยกให้ผู้ใช้อนุมัติ
 - **AI อ้างอิงรายการด้วยรหัสสั้น (R1, R2…)** ไม่เห็น uuid จริง จึงอ้าง id มั่วไม่ได้
 - **รายการที่เกิดซ้ำ** เก็บเป็นแถวเดียว (`every`, `times`, `until`) คำนวณแต่ละครั้งในแอป — ผลเหมือน `build.py` (มี unit test เทียบ)
-- **บันทึกรายวัน** วันละ 1 แถว (unique index) ตัวเลขใหม่ของวันเดียวกันรวมเข้าแถวเดิม
+- **บันทึกรายวัน** มีได้หลายแถวต่อวัน (1 เรื่อง = 1 รายการ) แก้ตัวเลขที่บันทึกแล้วด้วย action แก้ไขรายการเดิม
 
 ## Schema (สรุป)
 ```
@@ -37,7 +37,7 @@ ai_logs(id, user_id, provider, model, input, output jsonb, status, error, create
 ### 1. ตั้ง Supabase
 1. สร้างโปรเจกต์ (แนะนำ region Singapore `ap-southeast-1` ใกล้ไทยที่สุด)
 2. รัน migration: `supabase link --project-ref <ref>` แล้ว `supabase db push`
-   (หรือวาง `supabase/migrations/20261124000000_init.sql` ใน SQL Editor)
+   (หรือวางไฟล์ใน `supabase/migrations/` ใน SQL Editor ทีละไฟล์ตามลำดับชื่อ)
 3. Authentication → Email: เลือกว่าจะบังคับยืนยันอีเมลหรือไม่ (ใช้คนเดียวปิดได้ แต่ควรปิดการสมัครใหม่หลังสร้างบัญชีตัวเองแล้ว)
 4. ตรวจ Security Advisor ว่าไม่มีตารางที่ไม่ได้เปิด RLS
 

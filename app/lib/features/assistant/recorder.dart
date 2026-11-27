@@ -96,7 +96,8 @@ class Recorder {
       return '- ${ref(e)} $when [${e.category}]${e.isDaily ? ' (daily)' : ''} ${e.title}${ms.isEmpty ? '' : ' {$ms}'}';
     }
 
-    final upcoming = state.entries.where((e) => !e.hidden && e.isUpcoming(now)).toList()
+    // บันทึกรายวันของวันนี้อยู่ใน "14 วันล่าสุด" แล้ว ไม่ให้แย่งที่ของแผนข้างหน้า
+    final upcoming = state.entries.where((e) => !e.hidden && !e.isDaily && e.isUpcoming(now)).toList()
       ..sort((a, b) => a.shownDate(now).compareTo(b.shownDate(now)));
     final recentFrom = now.subtract(const Duration(days: 14));
     final recent = state.entries
@@ -142,12 +143,13 @@ class Recorder {
 ## กฎการตัดสินใจ
 - ตอบทุกข้อความ: reply ห้ามว่าง — ทักทายก็ทักตอบ; ถูกถามก็ตอบจากรายการที่เห็นด้านบน ถ้าไม่พบให้บอกตรงๆ ว่าไม่พบ
 - ผู้ใช้เล่าว่าทำหรือเจออะไร แม้สั้นมาก (เช่น "กินข้าวเย็น" "ไปวิ่งมา") → ต้องมีอย่างน้อย 1 action: create kind "daily" (ไม่บอกวัน = วันนี้) ใส่เรื่องที่เล่าใน body
-- ตัวเลขประจำ (น้ำหนัก การนอน อารมณ์ ก้าวเดิน) และโน้ตสั้นประจำวัน → create kind "daily" (วันละ 1 รายการ ระบบรวมกับของเดิมให้)
+- ตัวเลขประจำ (น้ำหนัก การนอน อารมณ์ ก้าวเดิน) และโน้ตสั้นประจำวัน → create kind "daily" มี title เสมอ (วันหนึ่งมีได้หลายรายการ)
+- เล่าหลายเรื่องในข้อความเดียว → แยก 1 เรื่อง = 1 action ห้ามรวม ตัวเลขใส่ใน action ของเรื่องนั้น
 - เรื่องที่ควรเห็นบน timeline (ทริป นัดหมาย ซื้อของใหญ่ สอบ เปลี่ยนงาน) → create kind "event"; หลายวันใส่ end_date
 - จ่ายหรือเกิดเป็นรอบ (ค่างวด ค่าสมาชิก วันเกิดคนสำคัญ) → ใส่ every: daily/weekly/monthly/yearly หรือ 2w, 3m, 1y และ times ถ้ารู้จำนวนครั้ง
 - milestone เฉพาะจุดเปลี่ยนชีวิตจริงๆ
 - ผู้ใช้บอกว่าทำสิ่งใน checklist แล้ว → type "check" กับรายการเดิม ห้ามสร้างรายการใหม่
-- แผนเปลี่ยน (เลื่อนวัน เปลี่ยนชื่อ) → type "update" กับรายการเดิม
+- แผนเปลี่ยน (เลื่อนวัน เปลี่ยนชื่อ) หรือแก้ตัวเลขที่บันทึกแล้ว → type "update" กับรายการเดิม
 - แผนที่ต้องเตรียมตัว → ใส่ checklist ใน body เป็นบรรทัด "- [ ] ..."
 - วันที่ที่ไม่บอกปี: เรื่องที่วางแผนไว้ใช้ครั้งถัดไปนับจากวันนี้ เรื่องที่เกิดแล้วใช้ครั้งล่าสุด ("ปีหน้า" = ปีของวันนี้ + 1)
 - เรื่องที่มีอยู่แล้วในรายการ → อ้างรายการนั้น (update/check) ไม่สร้างซ้ำ; ไม่มีอะไรใหม่ก็ตอบว่ามีบันทึกแล้ว
@@ -169,7 +171,7 @@ class Recorder {
   {"type": "check", "ref": "R3", "item": "ข้อความใน checklist", "done": true},
   {"type": "new_metric", "key": "water", "label": "ดื่มน้ำ", "unit": "ลิตร"}
 ]}
-update ใส่เฉพาะฟิลด์ที่เปลี่ยน
+update ใส่เฉพาะฟิลด์ที่เปลี่ยน (แก้ตัวเลขใส่ metrics แบบเดียวกับ create)
 questions ปกติเป็น [] ว่าง
 actions ว่างได้เฉพาะเมื่อเป็นคำทักทาย คำถาม หรือต้องถามข้อมูลเพิ่มก่อน — ถ้า actions ว่าง ห้ามบอกใน reply ว่าบันทึกแล้วหรือจะบันทึก''';
 
@@ -190,7 +192,7 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
         'new_category' => _newCategory(m, newCategories),
         'new_metric' => _newMetric(m, newMetrics),
         'create' => _create(m, now, newCategories, newMetrics),
-        'update' => _update(m, newCategories),
+        'update' => _update(m, newCategories, newMetrics),
         'check' => _check(m),
         _ => ProposedAction(type: '?', summary: 'คำสั่งที่ไม่รู้จัก: ${m['type']}', errors: const ['ไม่รองรับ']),
       });
@@ -265,23 +267,18 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     final every = (m['every'] as String?)?.trim();
     final times = (m['times'] as num?)?.toInt();
     final kind = m['kind'] == 'daily' ? 'daily' : 'event';
-    final metrics = <MetricValue>[];
-    for (final x in (m['metrics'] as List? ?? const []).whereType<Map>()) {
-      final key = '${x['key']}'.trim();
-      final value = (x['value'] is num) ? (x['value'] as num).toDouble() : double.tryParse('${x['value']}'.replaceAll(',', ''));
-      if (value == null) {
-        errors.add('ค่า $key ไม่ใช่ตัวเลข');
-        continue;
-      }
-      metrics.add(MetricValue(key, value, pending[key]?.unit ?? state.metricUnit(key)));
-    }
+    final metrics = _metrics(m, errors, pending);
+    final body = '${m['body'] ?? ''}'.trim();
+    var title = '${m['title'] ?? ''}'.trim();
+    // รายการที่ไม่มีทั้งชื่อและเนื้อหาจะไม่ขึ้น timeline → ใช้ตัวเลขเป็นชื่อ
+    if (kind == 'daily' && title.isEmpty && body.isEmpty) title = _describeMetrics(metrics, pending);
     final entry = Entry(
       kind: kind,
       date: date,
       endDate: end,
       category: '${m['category'] ?? (kind == 'daily' ? 'daily' : '')}'.trim(),
-      title: '${m['title'] ?? ''}'.trim(),
-      body: '${m['body'] ?? ''}'.trim(),
+      title: title,
+      body: body,
       recurrence: (every == null || every.isEmpty) ? null : Recurrence(every.toLowerCase(), times: times),
       source: 'ai',
       metrics: metrics,
@@ -289,38 +286,14 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     errors.addAll(validateEntry(entry,
         categories: {...state.categoryKeys, ...newCategories.keys}, metricKeys: {...state.metricKeys, ...pending.keys}));
 
-    // daily ของวันเดียวกันมีอยู่แล้ว → รวมเข้าไปแทนการสร้างใหม่
-    final existingDaily = kind == 'daily' ? state.dailyOn(date) : null;
-    if (existingDaily != null) {
-      var merged = existingDaily;
-      final changes = <String>[];
-      for (final mv in metrics) {
-        final old = merged.metrics.where((x) => x.key == mv.key).firstOrNull;
-        if (old != null && old.value != mv.value) changes.add('${state.metricLabel(mv.key)} ${_num(old.value)} → ${_num(mv.value)}');
-        merged = merged.copyWith(metrics: [...merged.metrics.where((x) => x.key != mv.key), mv]);
-      }
-      // บันทึกวันนั้นมีชื่ออยู่แล้วและโน้ตใหม่มีแค่ชื่อ → เก็บชื่อนั้นเป็นเนื้อหา ไม่ให้หาย
-      final titleOnly = entry.body.isEmpty && merged.title.isNotEmpty && entry.title != merged.title;
-      final note = titleOnly ? entry.title : entry.body;
-      if (note.isNotEmpty) {
-        merged = merged.copyWith(body: [merged.body, note].where((s) => s.isNotEmpty).join('\n\n'));
-      }
-      if (merged.title.isEmpty) merged = merged.copyWith(title: entry.title);
-      final result = merged;
-      return ProposedAction(
-        type: 'update',
-        summary: 'เพิ่มในบันทึกวันที่ ${fmtDate(date)}: ${[if (metrics.isNotEmpty) _describeMetrics(metrics), if (note.isNotEmpty) 'โน้ต'].join(' + ')}',
-        detail: [if (changes.isNotEmpty) 'แทนค่าเดิม: ${changes.join(', ')}', if (note.isNotEmpty) note].join('\n'),
-        errors: errors,
-        entry: result,
-        run: (s) => s.save(result),
-      );
-    }
-
-    if (kind == 'event' && entry.title.isNotEmpty) {
-      final dup = state.entries.where((e) => e.date == date && e.title.trim() == entry.title).firstOrNull;
-      if (dup != null) errors.add('มี "${entry.title}" วันที่ ${fmtDate(date)} อยู่แล้ว');
-    }
+    // กันบันทึกซ้ำ: เหตุการณ์ดูแค่ชื่อกับวัน ส่วนบันทึกรายวันมีชื่อซ้ำได้ จึงต้องเหมือนกันทุกอย่าง
+    final duplicate = state.entries.any((e) =>
+        e.date == date &&
+        e.title.trim() == entry.title &&
+        (kind == 'daily'
+            ? e.isDaily && e.body.trim() == entry.body && _metricSet(e.metrics) == _metricSet(metrics)
+            : entry.title.isNotEmpty));
+    if (duplicate) errors.add('มี "${entry.title}" วันที่ ${fmtDate(date)} อยู่แล้ว');
     final when = entry.recurrence != null
         ? '${entry.recurrence!.label} เริ่ม ${fmtDate(date)}${times == null ? '' : ' · $times ครั้ง'}'
         : end == null
@@ -330,16 +303,17 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     return ProposedAction(
       type: 'create',
       summary: kind == 'daily'
-          ? 'บันทึกวันที่ ${fmtDate(date)}: ${[if (metrics.isNotEmpty) _describeMetrics(metrics), if (entry.title.isNotEmpty) entry.title].join(' · ')}'
+          // เป็น set เพราะชื่ออาจมาจากตัวเลขเอง
+          ? 'บันทึกวันที่ ${fmtDate(date)}: ${<String>{if (entry.title.isNotEmpty) entry.title, if (metrics.isNotEmpty) _describeMetrics(metrics, pending)}.join(' · ')}'
           : 'เพิ่ม "${entry.title}" · $cat · $when',
-      detail: [if (kind != 'daily' && metrics.isNotEmpty) _describeMetrics(metrics), if (entry.body.isNotEmpty) entry.body].join('\n'),
+      detail: [if (kind != 'daily' && metrics.isNotEmpty) _describeMetrics(metrics, pending), if (entry.body.isNotEmpty) entry.body].join('\n'),
       errors: errors,
       entry: entry,
       run: (s) => s.save(entry),
     );
   }
 
-  ProposedAction _update(Map<String, dynamic> m, Map<String, EntryCategory> newCategories) {
+  ProposedAction _update(Map<String, dynamic> m, Map<String, EntryCategory> newCategories, Map<String, MetricDef> pending) {
     final target = _target(m['ref']);
     if (target == null) return ProposedAction(type: 'update', summary: 'แก้ไขรายการ ${m['ref']}', errors: const ['ไม่พบรายการที่อ้างถึง']);
     final errors = <String>[];
@@ -377,7 +351,15 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
         }
       }
     }
-    errors.addAll(validateEntry(e, categories: {...state.categoryKeys, ...newCategories.keys}, metricKeys: state.metricKeys));
+    for (final mv in _metrics(m, errors, pending)) {
+      final old = e.metrics.where((x) => x.key == mv.key).firstOrNull;
+      if (old?.value == mv.value) continue;
+      final label = pending[mv.key]?.label ?? state.metricLabel(mv.key);
+      changes.add(old == null ? _describeMetrics([mv], pending) : '$label ${_num(old.value)} → ${_num(mv.value)}');
+      e = e.copyWith(metrics: [...e.metrics.where((x) => x.key != mv.key), mv]);
+    }
+    errors.addAll(validateEntry(e,
+        categories: {...state.categoryKeys, ...newCategories.keys}, metricKeys: {...state.metricKeys, ...pending.keys}));
     final updated = e;
     if (changes.isEmpty) errors.add('ไม่มีอะไรเปลี่ยน');
     return ProposedAction(
@@ -423,8 +405,26 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     return d;
   }
 
-  String _describeMetrics(List<MetricValue> ms) =>
-      ms.map((m) => '${state.metricLabel(m.key)} ${_num(m.value)}${m.unit.isEmpty ? '' : ' ${m.unit}'}').join(', ');
+  List<MetricValue> _metrics(Map<String, dynamic> m, List<String> errors, Map<String, MetricDef> pending) {
+    final metrics = <MetricValue>[];
+    for (final x in (m['metrics'] as List? ?? const []).whereType<Map>()) {
+      final key = '${x['key']}'.trim();
+      final value = (x['value'] is num) ? (x['value'] as num).toDouble() : double.tryParse('${x['value']}'.replaceAll(',', ''));
+      if (value == null) {
+        errors.add('ค่า $key ไม่ใช่ตัวเลข');
+        continue;
+      }
+      metrics.add(MetricValue(key, value, pending[key]?.unit ?? state.metricUnit(key)));
+    }
+    return metrics;
+  }
+
+  String _describeMetrics(List<MetricValue> ms, Map<String, MetricDef> pending) => ms
+      .map((m) => '${pending[m.key]?.label ?? state.metricLabel(m.key)} ${_num(m.value)}${m.unit.isEmpty ? '' : ' ${m.unit}'}')
+      .join(', ');
+
+  /// ใช้เทียบว่าตัวเลขสองชุดเหมือนกันโดยไม่สนลำดับ
+  static String _metricSet(List<MetricValue> ms) => ([for (final m in ms) '${m.key}=${m.value}']..sort()).join(',');
 
   /// รูปแบบ key เดียวกับ CHECK constraint ของตาราง categories และ metric_defs
   static final _keyPattern = RegExp(r'^[a-z][a-z0-9_]{0,31}$');

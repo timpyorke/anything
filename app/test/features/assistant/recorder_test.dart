@@ -63,33 +63,59 @@ void main() {
     expect(llm.lastSystem, isNot(contains('trip-id')));
   });
 
-  test('daily metrics merge into the existing daily entry of that day', () async {
-    final r = await run({
-      'reply': 'ok',
-      'actions': [
-        {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'health', 'metrics': [{'key': 'weight', 'value': 74.5}, {'key': 'sleep', 'value': 7}]},
-      ],
-    });
-    final a = r.actions.single;
-    expect(a.type, 'update');
-    expect(a.valid, isTrue);
-    expect(a.detail, contains('75 → 74.5'));
-    expect(a.entry!.id, 'daily-id');
-    expect(a.entry!.metrics.map((m) => m.key), containsAll(['weight', 'sleep']));
-  });
-
-  test('title-only daily note is kept when merged into that day', () async {
+  test('each daily story becomes its own entry, even on a day that already has one', () async {
     final r = await run({
       'actions': [
         {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'daily', 'title': 'กินข้าวเย็น'},
+        {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'health', 'title': 'ไปวิ่ง'},
+      ],
+    });
+    expect(r.actions.map((a) => a.type), ['create', 'create']);
+    expect(r.actions.map((a) => a.valid), everyElement(isTrue));
+    expect(r.actions.map((a) => a.entry!.id), everyElement(isNull));
+    expect(r.actions.map((a) => a.entry!.title), ['กินข้าวเย็น', 'ไปวิ่ง']);
+  });
+
+  test('a daily entry with only numbers gets a title so it shows on the timeline', () async {
+    final r = await run({
+      'actions': [
+        {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'health', 'metrics': [{'key': 'sleep', 'value': 7}]},
       ],
     });
     final a = r.actions.single;
     expect(a.valid, isTrue);
-    expect(a.entry!.title, 'วัดร่างกาย');
-    expect(a.entry!.body, 'กินข้าวเย็น');
-    expect(a.summary, endsWith(': โน้ต'));
-    expect(a.detail, 'กินข้าวเย็น');
+    expect(a.entry!.title, 'การนอน 7 ชม.');
+    expect(a.entry!.hidden, isFalse);
+    expect(a.summary, endsWith(': การนอน 7 ชม.'));
+  });
+
+  test('only an identical daily entry counts as a duplicate', () async {
+    Map<String, Object?> weigh(double value) => {
+          'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'health', 'title': 'วัดร่างกาย',
+          'metrics': [{'key': 'weight', 'value': value}],
+        };
+    final r = await run({'actions': [weigh(75), weigh(74.5)]});
+    expect(r.actions.map((a) => a.valid), [false, true]);
+    expect(r.actions[0].errors.join(), contains('อยู่แล้ว'));
+  });
+
+  test('update corrects a recorded number', () {
+    final rec = Recorder(state, clock: () => now)..systemPrompt(now);
+    final ref = rec.refs.entries.firstWhere((e) => e.value == 'daily-id').key;
+    final r = rec.parse(jsonEncode({'actions': [
+      {'type': 'update', 'ref': ref, 'metrics': [{'key': 'weight', 'value': 74.5}, {'key': 'sleep', 'value': 7}]},
+    ]}), now);
+    final a = r.actions.single;
+    expect(a.valid, isTrue);
+    expect(a.summary, allOf(contains('น้ำหนัก 75 → 74.5'), contains('การนอน 7 ชม.')));
+    expect(a.entry!.id, 'daily-id');
+    expect({for (final m in a.entry!.metrics) m.key: m.value}, {'weight': 74.5, 'sleep': 7.0});
+  });
+
+  test('prompt asks for one action per story', () {
+    final prompt = Recorder(state, clock: () => now).systemPrompt(now);
+    expect(prompt, contains('1 เรื่อง = 1 action'));
+    expect(prompt, isNot(contains('วันละ 1 รายการ')));
   });
 
   test('prompt tells the model to record even a short daily activity', () {
