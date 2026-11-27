@@ -41,6 +41,7 @@ ai_logs(id, user_id, provider, model, input, output jsonb, status, error, create
    (หรือวางไฟล์ใน `supabase/migrations/` ใน SQL Editor ทีละไฟล์ตามลำดับชื่อ)
 3. Authentication → Email: เลือกว่าจะบังคับยืนยันอีเมลหรือไม่ (ใช้คนเดียวปิดได้ แต่ควรปิดการสมัครใหม่หลังสร้างบัญชีตัวเองแล้ว)
 4. ตรวจ Security Advisor ว่าไม่มีตารางที่ไม่ได้เปิด RLS
+5. (ไม่บังคับ) เข้าสู่ระบบด้วย Google / Apple / Facebook: ดู [social-login.md](social-login.md)
 
 ### 2. รันแอป
 ```

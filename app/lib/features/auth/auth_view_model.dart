@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
 import '../../app/language.dart';
 import '../../app/providers.dart';
+import '../../core/l10n/app_strings.dart';
+import '../../domain/repositories/social_auth_repository.dart';
 
 part 'auth_view_model.freezed.dart';
 
@@ -12,6 +14,9 @@ abstract class AuthFormState with _$AuthFormState {
   const factory AuthFormState({
     @Default(false) bool signUp,
     @Default(false) bool busy,
+
+    /// ปุ่มบริการภายนอกที่กำลังรอผล (null = ไม่มี หรือกำลังใช้อีเมล)
+    SocialProvider? signingInWith,
     String? error,
     String? info,
   }) = _AuthFormState;
@@ -44,16 +49,38 @@ class AuthViewModel extends Notifier<AuthFormState> {
         await auth.signInWithPassword(email: email, password: password);
       }
     } on AuthException catch (e) {
-      error = switch (e.code) {
-        'invalid_credentials' => t.invalidCredentials,
-        'email_not_confirmed' => t.emailNotConfirmed,
-        'user_already_exists' => t.userAlreadyExists,
-        'weak_password' => t.weakPassword,
-        _ => e.message,
-      };
+      error = _message(t, e);
     } catch (e) {
       error = t.connectionFailed(e);
     }
     state = state.copyWith(busy: false, error: error, info: info);
+  }
+
+  Future<void> signInWith(SocialProvider provider) async {
+    if (state.busy) return;
+    final t = ref.read(stringsProvider);
+    state = state.copyWith(busy: true, signingInWith: provider, error: null, info: null);
+    String? error;
+    try {
+      await ref.read(socialAuthRepositoryProvider).signIn(provider);
+    } on AuthException catch (e) {
+      error = _message(t, e);
+    } catch (e) {
+      error = t.socialSignInFailed(provider.label, e);
+    }
+    state = state.copyWith(busy: false, signingInWith: null, error: error);
+  }
+
+  String _message(AppStrings t, AuthException e) {
+    // error ที่ติดมากับ URL ตอนกลับจากหน้าเว็บ รหัสของ Supabase อยู่ใน statusCode ไม่ใช่ code
+    if (e.code == 'signup_disabled' || e.statusCode == 'signup_disabled') return t.signupDisabled;
+    if (e.statusCode == 'provider_email_needs_verification') return t.emailNotConfirmed;
+    return switch (e.code) {
+      'invalid_credentials' => t.invalidCredentials,
+      'email_not_confirmed' => t.emailNotConfirmed,
+      'user_already_exists' => t.userAlreadyExists,
+      'weak_password' => t.weakPassword,
+      _ => e.message,
+    };
   }
 }

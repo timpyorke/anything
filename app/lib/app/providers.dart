@@ -7,7 +7,9 @@ import '../ai/on_device_provider.dart';
 import '../ai/voice_recorder.dart';
 import '../data/photo_picker.dart';
 import '../data/supabase_diary_repository.dart';
+import '../data/supabase_social_auth_repository.dart';
 import '../domain/repositories/diary_repository.dart';
+import '../domain/repositories/social_auth_repository.dart';
 import 'language.dart';
 
 /// Provider ระดับแอป (infrastructure) — ทดสอบได้โดย override ที่นี่
@@ -18,6 +20,9 @@ final secureStorageProvider = Provider<FlutterSecureStorage>((ref) => const Flut
 
 final diaryRepositoryProvider =
     Provider<DiaryRepository>((ref) => SupabaseDiaryRepository(ref.watch(supabaseClientProvider)));
+
+final socialAuthRepositoryProvider = Provider<SocialAuthRepository>(
+    (ref) => SupabaseSocialAuthRepository(ref.watch(supabaseClientProvider).auth));
 
 final authChangesProvider =
     StreamProvider<sb.AuthState>((ref) => ref.watch(supabaseClientProvider).auth.onAuthStateChange);
@@ -31,7 +36,9 @@ final currentUserIdProvider = Provider<String?>((ref) {
 
 final currentUserEmailProvider = Provider<String?>((ref) {
   ref.watch(authChangesProvider);
-  return ref.watch(supabaseClientProvider).auth.currentUser?.email;
+  final email = ref.watch(supabaseClientProvider).auth.currentUser?.email;
+  // บัญชีจากบริการภายนอกบางบัญชีไม่มีอีเมล (เช่น Facebook ที่สมัครด้วยเบอร์โทร) และได้ค่าว่างมาแทน null
+  return email == null || email.isEmpty ? null : email;
 });
 
 final signOutProvider = Provider<Future<void> Function()>((ref) => ref.watch(supabaseClientProvider).auth.signOut);

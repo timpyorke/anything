@@ -9,6 +9,7 @@ cp env.example.json env.json     # ใส่ค่า Supabase (env.json ไม�
 flutter run --dart-define-from-file=env.json
 ```
 ต้องรัน migration ใน `../supabase/migrations/` กับโปรเจกต์ Supabase ก่อน — ดู `../docs/mobile-migration.md`
+ปุ่มเข้าสู่ระบบด้วย Google / Apple / Facebook ต้องเปิดผู้ให้บริการใน Supabase ก่อน — ดู `../docs/social-login.md`
 
 ## โครงสร้าง
 แยกตามฟีเจอร์ (feature-first) — แต่ละฟีเจอร์อยู่ในโฟลเดอร์เดียว โค้ดที่ใช้ร่วมกันอยู่ใน `core/` และ `domain/`

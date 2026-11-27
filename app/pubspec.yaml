@@ -45,6 +45,9 @@ dependencies:
   freezed_annotation: ^3.1.0
   record: ^7.2.0
   image_picker: ^1.2.4
+  flutter_web_auth_2: ^6.1.0
+  sign_in_with_apple: ^8.2.0
+  crypto: ^3.0.8
   material_ui: ^1.11.1
 
 dev_dependencies:

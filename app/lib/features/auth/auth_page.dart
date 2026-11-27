@@ -6,6 +6,7 @@ import '../../app/language.dart';
 import '../../core/widgets/notice_box.dart';
 import '../../core/widgets/section.dart';
 import 'auth_view_model.dart';
+import 'social_sign_in_buttons.dart';
 
 class AuthPage extends ConsumerStatefulWidget {
   const AuthPage({super.key});
@@ -97,7 +98,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: st.busy ? null : _submit,
-                    child: st.busy
+                    child: st.busy && st.signingInWith == null
                         ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
                         : Text(st.signUp ? t.createAccount : t.signIn),
                   ),
@@ -105,6 +106,23 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   TextButton(
                     onPressed: st.busy ? null : ref.read(authViewModelProvider.notifier).toggleMode,
                     child: Text(st.signUp ? t.switchToSignIn : t.switchToSignUp),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(t.orDivider, style: theme.textTheme.bodySmall),
+                      ),
+                      const Expanded(child: Divider()),
+                    ]),
+                  ),
+                  SocialSignInButtons(
+                    strings: t,
+                    enabled: !st.busy,
+                    signingInWith: st.signingInWith,
+                    onPressed: ref.read(authViewModelProvider.notifier).signInWith,
                   ),
                 ]),
               ),

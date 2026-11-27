@@ -97,6 +97,14 @@ class ThStrings extends AppStrings {
   String get weakPassword => 'รหัสผ่านง่ายเกินไป';
   @override
   String connectionFailed(Object error) => 'เชื่อมต่อไม่ได้: $error';
+  @override
+  String get orDivider => 'หรือ';
+  @override
+  String continueWith(String provider) => 'ดำเนินการต่อด้วย $provider';
+  @override
+  String socialSignInFailed(String provider, Object error) => 'เข้าสู่ระบบด้วย $provider ไม่สำเร็จ: $error';
+  @override
+  String get signupDisabled => 'ปิดรับสมัครบัญชีใหม่ — ใช้บัญชีที่มีอยู่แล้ว';
 
   // ── Timeline และการ์ดรายการ
   @override

@@ -125,6 +125,10 @@ abstract class AppStrings {
   String get userAlreadyExists;
   String get weakPassword;
   String connectionFailed(Object error);
+  String get orDivider;
+  String continueWith(String provider);
+  String socialSignInFailed(String provider, Object error);
+  String get signupDisabled;
 
   // ── Timeline และการ์ดรายการ
   String get search;

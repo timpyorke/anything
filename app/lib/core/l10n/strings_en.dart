@@ -100,6 +100,14 @@ class EnStrings extends AppStrings {
   String get weakPassword => 'Password is too weak';
   @override
   String connectionFailed(Object error) => 'Could not connect: $error';
+  @override
+  String get orDivider => 'or';
+  @override
+  String continueWith(String provider) => 'Continue with $provider';
+  @override
+  String socialSignInFailed(String provider, Object error) => 'Could not sign in with $provider: $error';
+  @override
+  String get signupDisabled => 'New sign-ups are turned off — use an existing account';
 
   // ── Timeline และการ์ดรายการ
   @override
