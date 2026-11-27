@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/dates.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../domain/entry.dart';
-import '../assistant/voice_capture.dart';
+import '../assistant/anything_button.dart';
 import '../diary/diary_view_model.dart';
 import '../entry_editor/entry_editor_page.dart';
 import '../overview/overview_page.dart';
