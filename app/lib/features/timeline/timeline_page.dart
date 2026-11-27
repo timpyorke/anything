@@ -153,7 +153,7 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
               if (upcoming.isNotEmpty && past.isNotEmpty)
                 SliverToBoxAdapter(child: _TodayDivider(now: now)),
               ..._pastByYear(context, view),
-              const SliverToBoxAdapter(child: SizedBox(height: 96)),
+              const SliverToBoxAdapter(child: SizedBox(height: 144)),
             ],
           ],
         ),

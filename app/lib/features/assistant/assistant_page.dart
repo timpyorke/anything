@@ -87,6 +87,12 @@ class TurnView extends ConsumerWidget {
                     Expanded(child: Text(q, style: TextStyle(color: scheme.tertiary))),
                   ]),
                 ),
+              // บอกตรงๆ เพราะโมเดลอาจตอบเหมือนบันทึกแล้วทั้งที่ไม่ได้เสนออะไร
+              if (r.actions.isEmpty && r.questions.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('ยังไม่มีอะไรถูกบันทึก ลองเล่าให้ละเอียดขึ้นแล้วส่งอีกครั้ง', style: TextStyle(color: scheme.error)),
+                ),
               if (r.actions.isNotEmpty) const Divider(height: 20),
               for (final (i, a) in r.actions.indexed) _ActionTile(action: a, locked: turn.applied || turn.busy, vm: vm, index: i),
               if (selectable.isNotEmpty) ...[

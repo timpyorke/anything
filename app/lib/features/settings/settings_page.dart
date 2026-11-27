@@ -16,11 +16,18 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  late final TextEditingController _model = TextEditingController(text: ref.read(aiSettingsProvider).studioModel);
+  late final TextEditingController _model;
   final _key = TextEditingController();
   bool _showKey = false;
 
   SettingsViewModel get _vm => ref.read(settingsViewModelProvider.notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    // สร้างตั้งแต่ตอนนี้: ถ้าสร้างแบบ lazy แล้วหน้าไม่เคยแสดงช่องโมเดล จะไปเรียก ref ใน dispose
+    _model = TextEditingController(text: ref.read(aiSettingsProvider).studioModel);
+  }
 
   @override
   void dispose() {

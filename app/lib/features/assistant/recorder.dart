@@ -106,6 +106,7 @@ class Recorder {
 
   static const _rules = '''
 ## กฎการตัดสินใจ
+- ผู้ใช้เล่าว่าทำหรือเจออะไร แม้สั้นมาก (เช่น "กินข้าวเย็น" "ไปวิ่งมา") → ต้องมีอย่างน้อย 1 action: create kind "daily" (ไม่บอกวัน = วันนี้) ใส่เรื่องที่เล่าใน body
 - ตัวเลขประจำ (น้ำหนัก การนอน อารมณ์ ก้าวเดิน) และโน้ตสั้นประจำวัน → create kind "daily" (วันละ 1 รายการ ระบบรวมกับของเดิมให้)
 - เรื่องที่ควรเห็นบน timeline (ทริป นัดหมาย ซื้อของใหญ่ สอบ เปลี่ยนงาน) → create kind "event"; หลายวันใส่ end_date
 - จ่ายหรือเกิดเป็นรอบ (ค่างวด ค่าสมาชิก วันเกิดคนสำคัญ) → ใส่ every: daily/weekly/monthly/yearly หรือ 2w, 3m, 1y และ times ถ้ารู้จำนวนครั้ง
@@ -121,11 +122,13 @@ class Recorder {
 ## รูปแบบคำตอบ (JSON object เท่านั้น ไม่มีข้อความอื่น)
 {"reply": "...", "questions": ["..."], "actions": [
   {"type": "create", "kind": "event", "date": "YYYY-MM-DD", "end_date": null, "category": "travel", "title": "...", "body": "...", "metrics": [{"key": "weight", "value": 74.5}], "every": null, "times": null},
+  {"type": "create", "kind": "daily", "date": "YYYY-MM-DD", "category": "daily", "title": "กินข้าวเย็น", "body": "กินข้าวเย็น"},
   {"type": "update", "ref": "R2", "date": "YYYY-MM-DD", "end_date": null, "title": "...", "body": "..."},
   {"type": "check", "ref": "R3", "item": "ข้อความใน checklist", "done": true},
   {"type": "new_metric", "key": "water", "label": "ดื่มน้ำ", "unit": "ลิตร"}
 ]}
-update ใส่เฉพาะฟิลด์ที่เปลี่ยน · actions ว่างได้ถ้าไม่มีอะไรต้องบันทึก''';
+update ใส่เฉพาะฟิลด์ที่เปลี่ยน
+actions ว่างได้เฉพาะเมื่อเป็นคำทักทาย คำถาม หรือต้องถามข้อมูลเพิ่มก่อน — ถ้า actions ว่าง ห้ามบอกใน reply ว่าบันทึกแล้วหรือจะบันทึก''';
 
   /// แปลงคำตอบของ AI → AiResult (ตรวจทุก action ด้วยกฎเดียวกับฐานข้อมูล)
   AiResult parse(String raw, DateTime now) {
@@ -209,15 +212,18 @@ update ใส่เฉพาะฟิลด์ที่เปลี่ยน · 
         if (old != null && old.value != mv.value) changes.add('${state.metricLabel(mv.key)} ${_num(old.value)} → ${_num(mv.value)}');
         merged = merged.copyWith(metrics: [...merged.metrics.where((x) => x.key != mv.key), mv]);
       }
-      if (entry.body.isNotEmpty) {
-        merged = merged.copyWith(body: [merged.body, entry.body].where((s) => s.isNotEmpty).join('\n\n'));
+      // บันทึกวันนั้นมีชื่ออยู่แล้วและโน้ตใหม่มีแค่ชื่อ → เก็บชื่อนั้นเป็นเนื้อหา ไม่ให้หาย
+      final titleOnly = entry.body.isEmpty && merged.title.isNotEmpty && entry.title != merged.title;
+      final note = titleOnly ? entry.title : entry.body;
+      if (note.isNotEmpty) {
+        merged = merged.copyWith(body: [merged.body, note].where((s) => s.isNotEmpty).join('\n\n'));
       }
       if (merged.title.isEmpty) merged = merged.copyWith(title: entry.title);
       final result = merged;
       return ProposedAction(
         type: 'update',
-        summary: 'เพิ่มในบันทึกวันที่ ${fmtDate(date)}: ${_describeMetrics(metrics)}${entry.body.isEmpty ? '' : ' + โน้ต'}',
-        detail: changes.isEmpty ? '' : 'แทนค่าเดิม: ${changes.join(', ')}',
+        summary: 'เพิ่มในบันทึกวันที่ ${fmtDate(date)}: ${[if (metrics.isNotEmpty) _describeMetrics(metrics), if (note.isNotEmpty) 'โน้ต'].join(' + ')}',
+        detail: [if (changes.isNotEmpty) 'แทนค่าเดิม: ${changes.join(', ')}', if (note.isNotEmpty) note].join('\n'),
         errors: errors,
         entry: result,
         run: (s) => s.save(result),

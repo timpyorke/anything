@@ -5,7 +5,7 @@ import 'assistant_page.dart';
 import 'turn_view_model.dart';
 import 'voice_view_model.dart';
 
-/// ปุ่มหน้าแรก: แตะแถบเพื่อพิมพ์ / แตะปุ่มไมค์เพื่อเริ่มพูด → แตะอีกครั้งเพื่อส่งให้ AI
+/// กล่องพิมพ์หน้าแรกแบบแอป AI: พิมพ์แล้วกดส่ง หรือกดไมค์ (ตอนช่องว่าง) เพื่อพูด → กดส่งอีกครั้ง
 /// → ผลขึ้นเป็น bottom sheet ให้ยืนยัน (ปุ่ม "ยกเลิก" ระหว่างฟังเพื่อทิ้ง)
 ///
 /// ใช้ระบบรู้จำเสียง "ในเครื่อง" เท่านั้น (onDevice) เพื่อไม่ส่งเสียงไปบริการภายนอก
@@ -17,19 +17,15 @@ class AnythingButton extends ConsumerStatefulWidget {
 }
 
 class _AnythingButtonState extends ConsumerState<AnythingButton> {
-  bool _typing = false;
   final _text = TextEditingController();
   final _focus = FocusNode();
-  late final _vm = ref.read(voiceViewModelProvider.notifier);
+  late final VoiceViewModel _vm;
 
-  void _openTyping() {
-    setState(() => _typing = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
-  }
-
-  void _closeTyping() {
-    _focus.unfocus();
-    setState(() => _typing = false);
+  @override
+  void initState() {
+    super.initState();
+    // อ่านตั้งแต่ตอนนี้ เพราะใช้ ref ใน dispose ไม่ได้
+    _vm = ref.read(voiceViewModelProvider.notifier);
   }
 
   Future<void> _submitText() async {
@@ -37,7 +33,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     if (text.isEmpty) return;
     final nav = Navigator.of(context), messenger = ScaffoldMessenger.of(context);
     _text.clear();
-    _closeTyping();
+    _focus.unfocus();
     await _ask(text, nav, messenger);
   }
 
@@ -47,14 +43,10 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _toggleVoice() async {
-    if (ref.read(voiceViewModelProvider).listening) return _end();
+  Future<void> _startVoice() async {
+    _focus.unfocus();
     final nav = Navigator.of(context);
     if (await _vm.start(0) == VoiceStart.needsSetup) await ensureLlmProvider(nav, ref);
-  }
-
-  Future<void> _cancelVoice() async {
-    _vm.discard();
   }
 
   Future<void> _end() async {
@@ -90,95 +82,111 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     });
     final v = ref.watch(voiceViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
-    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
-      if (v.listening)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 40),
-            child: Card(
-              margin: EdgeInsets.zero,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                    v.words.isEmpty ? 'กำลังฟัง… พูดได้เลย' : v.words,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: v.words.isEmpty ? scheme.onSurfaceVariant : null,
-                        ),
-                    maxLines: 6,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    Expanded(child: Text('แตะไมค์อีกครั้งเพื่อส่ง', style: Theme.of(context).textTheme.bodySmall)),
-                    TextButton(onPressed: _cancelVoice, child: const Text('ยกเลิก')),
-                  ]),
-                ]),
-              ),
+    // TextFieldTapRegion: แตะปุ่มในกล่องไม่นับเป็น "แตะข้างนอก" คีย์บอร์ดจึงไม่หุบ
+    return TextFieldTapRegion(
+      child: SizedBox(
+        width: MediaQuery.sizeOf(context).width - 32,
+        child: Material(
+          elevation: 3,
+          color: scheme.surfaceContainerLow,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+            side: BorderSide(color: scheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: v.listening ? _listeningContent(context, v.words) : _inputContent(context),
             ),
           ),
         ),
-      if (_typing)
-        ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 32),
-          child: Material(
-            elevation: 3,
-            color: scheme.surfaceContainerHigh,
-            shape: const StadiumBorder(),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 4, 4),
-              child: Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _text,
-                    focusNode: _focus,
-                    minLines: 1,
-                    maxLines: 4,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _submitText(),
-                    decoration: const InputDecoration(
-                      hintText: 'พิมพ์เล่าอะไรก็ได้…',
-                      border: InputBorder.none,
-                      isDense: true,
-                    ),
-                  ),
-                ),
-                IconButton(icon: const Icon(Icons.close), tooltip: 'ปิด', onPressed: _closeTyping),
-                IconButton.filled(icon: const Icon(Icons.arrow_upward), tooltip: 'ส่ง', onPressed: _submitText),
-              ]),
-            ),
+      ),
+    );
+  }
+
+  List<Widget> _inputContent(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyLarge;
+    return [
+      TextField(
+        controller: _text,
+        focusNode: _focus,
+        minLines: 1,
+        maxLines: 5,
+        style: style,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        onTapOutside: (_) => _focus.unfocus(),
+        decoration: InputDecoration(
+          hintText: 'พิมพ์เล่าอะไรก็ได้…',
+          hintStyle: style?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          // ปิดพื้นและเส้นขอบจากธีม ให้ช่องพิมพ์กลืนไปกับกล่อง
+          filled: false,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        ),
+      ),
+      Row(children: [
+        IconButton(
+          icon: const Icon(Icons.photo_camera_outlined),
+          tooltip: 'กล้อง',
+          onPressed: () => _toast('ฟีเจอร์กล้องกำลังมาเร็วๆ นี้'),
+        ),
+        const Spacer(),
+        ValueListenableBuilder(
+          valueListenable: _text,
+          builder: (context, value, _) => value.text.trim().isEmpty
+              ? _primaryButton(context, icon: Icons.mic, tooltip: 'พูด', onPressed: _startVoice)
+              : _primaryButton(context, icon: Icons.arrow_upward, tooltip: 'ส่ง', onPressed: _submitText),
+        ),
+      ]),
+    ];
+  }
+
+  List<Widget> _listeningContent(BuildContext context, String words) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return [
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 144),
+        // reverse: พูดยาวแล้วยังเห็นคำล่าสุดเสมอ
+        child: SingleChildScrollView(
+          reverse: true,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Text(
+            words.isEmpty ? 'กำลังฟัง… พูดได้เลย' : words,
+            style: theme.textTheme.bodyLarge?.copyWith(color: words.isEmpty ? scheme.onSurfaceVariant : null),
           ),
-        )
-      else
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(width: 68), // เว้นซ้ายเท่าปุ่มกล้อง+ช่องว่าง เพื่อให้ปุ่มกลางอยู่กลางจอจริง
-          FloatingActionButton.extended(
-            heroTag: 'voice_capture',
-            onPressed: v.listening ? null : _openTyping,
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('พิมพ์เล่าอะไรก็ได้'),
-          ),
-          const SizedBox(width: 12),
-          FloatingActionButton(
-            heroTag: 'mic_capture',
-            shape: const CircleBorder(),
-            tooltip: v.listening ? 'หยุดและส่ง' : 'พูด',
-            backgroundColor: v.listening ? scheme.error : null,
-            foregroundColor: v.listening ? scheme.onError : null,
-            onPressed: _toggleVoice,
-            child: Icon(v.listening ? Icons.stop : Icons.mic),
-          ),
-          const SizedBox(width: 12),
-          FloatingActionButton(
-            heroTag: 'camera_capture',
-            shape: const CircleBorder(),
-            tooltip: 'กล้อง',
-            onPressed: () => _toast('ฟีเจอร์กล้องกำลังมาเร็วๆ นี้'),
-            child: const Icon(Icons.photo_camera_outlined),
-          ),
-        ]),
-    ]);
+        ),
+      ),
+      Row(children: [
+        IconButton(icon: const Icon(Icons.close), tooltip: 'ยกเลิก', onPressed: _vm.discard),
+        const SizedBox(width: 4),
+        Icon(Icons.graphic_eq, size: 20, color: scheme.error),
+        const SizedBox(width: 6),
+        Expanded(child: Text('กำลังฟัง', style: theme.textTheme.bodySmall)),
+        _primaryButton(context, icon: Icons.arrow_upward, tooltip: 'หยุดและส่ง', onPressed: _end),
+      ]),
+    ];
+  }
+
+  Widget _primaryButton(
+    BuildContext context, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton.filled(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(backgroundColor: scheme.onSurface, foregroundColor: scheme.surface),
+    );
   }
 }
 

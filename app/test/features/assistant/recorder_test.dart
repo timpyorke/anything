@@ -78,6 +78,26 @@ void main() {
     expect(a.entry!.metrics.map((m) => m.key), containsAll(['weight', 'sleep']));
   });
 
+  test('title-only daily note is kept when merged into that day', () async {
+    final r = await run({
+      'actions': [
+        {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'daily', 'title': 'กินข้าวเย็น'},
+      ],
+    });
+    final a = r.actions.single;
+    expect(a.valid, isTrue);
+    expect(a.entry!.title, 'วัดร่างกาย');
+    expect(a.entry!.body, 'กินข้าวเย็น');
+    expect(a.summary, endsWith(': โน้ต'));
+    expect(a.detail, 'กินข้าวเย็น');
+  });
+
+  test('prompt tells the model to record even a short daily activity', () {
+    final prompt = Recorder(state, clock: () => now).systemPrompt(now);
+    expect(prompt, contains('ต้องมีอย่างน้อย 1 action'));
+    expect(prompt, contains('"kind": "daily"'));
+  });
+
   test('check action resolves the ref and the loosely worded item', () async {
     final rec = Recorder(state, clock: () => now);
     final llm = FakeLlm('');
