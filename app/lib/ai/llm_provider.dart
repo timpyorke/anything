@@ -4,7 +4,7 @@ import 'dart:typed_data';
 enum AiProviderKind {
   onDevice('on_device', 'Gemma'),
   aiStudio('ai_studio', 'Google AI Studio', company: 'Google',
-      defaultModel: 'gemini-2.5-flash', keyUrl: 'aistudio.google.com/apikey', slot: 'studio'),
+      defaultModel: 'gemini-3.5-flash-lite', keyUrl: 'aistudio.google.com/apikey', slot: 'studio'),
   anthropic('anthropic', 'Claude (Anthropic)', company: 'Anthropic',
       defaultModel: 'claude-opus-5-5', keyUrl: 'platform.claude.com/settings/keys', slot: 'anthropic'),
   openAi('openai', 'OpenAI', company: 'OpenAI',
