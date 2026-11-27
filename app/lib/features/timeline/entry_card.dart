@@ -12,10 +12,20 @@ import '../diary/diary_view_model.dart';
 
 /// การ์ดรายการบน Timeline
 class EntryCard extends ConsumerWidget {
-  const EntryCard({super.key, required this.entry, required this.now, this.onTap});
+  const EntryCard({super.key, required this.entry, required this.now, this.showDate = true, this.showBadge = true, this.onTap});
   final Entry entry;
   final DateTime now;
+
+  /// false = วันเดียวกับแถวก่อนหน้า เว้นคอลัมน์วันที่ว่างไว้ให้เนื้อหายังตรงแนว
+  final bool showDate;
+
+  /// false = ป้ายซ้ำกับแถวก่อนหน้าของวันเดียวกัน
+  final bool showBadge;
   final VoidCallback? onTap;
+
+  /// ป้ายบอกเวลาเทียบกับวันนี้ เช่น "วันนี้" (null = ไม่มีป้าย)
+  static String? badgeOf(Entry e, DateTime now) =>
+      relativeLabel(e.shownDate(now), e.lastDate(now), now, isRange: e.endDate != null);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,7 +35,7 @@ class EntryCard extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final rs = e.recState(now);
     final shown = e.shownDate(now);
-    final rel = relativeLabel(shown, e.lastDate(now), now, isRange: e.endDate != null);
+    final rel = showBadge ? badgeOf(e, now) : null;
     final soon = rel != null && daysBetween(now, shown) <= 7;
     final cl = e.checklist;
 
@@ -38,19 +48,21 @@ class EntryCard extends ConsumerWidget {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: 44,
-            child: Column(children: [
-              Text('${shown.day}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.5)),
-              Text(thMonthsShort[shown.month - 1], style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-            ]),
+            child: showDate
+                ? Column(children: [
+                    Text('${shown.day}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.5)),
+                    Text(thMonthsShort[shown.month - 1], style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  ])
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                if (rel != null) Pill(rel, color: soon ? scheme.primary : null),
-              ]),
-              if (e.title.isNotEmpty) ...[
+              if (rel != null) ...[
+                Pill(rel, color: soon ? scheme.primary : null),
                 const SizedBox(height: 4),
+              ],
+              if (e.title.isNotEmpty) ...[
                 Text(e.title, style: Theme.of(context).textTheme.titleMedium),
               ],
               if (rs != null) _RecurrenceInfo(entry: e, rs: rs, state: state, color: cat.color),

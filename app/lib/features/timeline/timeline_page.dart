@@ -3,38 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/dates.dart';
 import '../../core/widgets/empty_state.dart';
-import '../../domain/entry.dart';
 import '../assistant/anything_button.dart';
 import '../diary/diary_view_model.dart';
-import '../entry_editor/entry_editor_page.dart';
 import '../overview/overview_page.dart';
+import '../search/search_page.dart';
 import '../settings/settings_page.dart';
-import 'entry_card.dart';
+import 'entry_section.dart';
 import 'timeline_filter.dart';
 import 'timeline_view_model.dart';
 
-class TimelinePage extends ConsumerStatefulWidget {
+class TimelinePage extends ConsumerWidget {
   const TimelinePage({super.key});
 
   @override
-  ConsumerState<TimelinePage> createState() => _TimelinePageState();
-}
-
-class _TimelinePageState extends ConsumerState<TimelinePage> {
-  final _search = TextEditingController();
-  bool _searching = false;
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  void _push(Widget page) =>
-      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(diaryViewModelProvider);
     final f = ref.watch(timelineFilterProvider);
     final fvm = ref.read(timelineFilterProvider.notifier);
@@ -43,41 +25,27 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
         list = [...view.upcoming, ...view.past],
         upcoming = view.upcoming,
         past = view.past;
+    void push(Widget page) =>
+        Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     return Scaffold(
       appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller: _search,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'ค้นหาชื่อ เนื้อหา หมวด…',
-                  border: InputBorder.none,
-                ),
-                onChanged: fvm.setQuery,
-              )
-            : const Text('Timeline'),
+        title: const Text('Timeline'),
         actions: [
           IconButton(
-            tooltip: _searching ? 'ปิดการค้นหา' : 'ค้นหา',
-            icon: Icon(_searching ? Icons.close : Icons.search),
-            onPressed: () => setState(() {
-              _searching = !_searching;
-              if (!_searching) {
-                _search.clear();
-                fvm.setQuery('');
-              }
-            }),
+            tooltip: 'ค้นหา',
+            icon: const Icon(Icons.search),
+            onPressed: () => push(const SearchPage()),
           ),
           IconButton(
             tooltip: 'ภาพรวม',
             icon: const Icon(Icons.calendar_month_outlined),
             onPressed: () =>
-                _push(OverviewPage(openTimeline: () => Navigator.pop(context))),
+                push(OverviewPage(openTimeline: () => Navigator.pop(context))),
           ),
           IconButton(
             tooltip: 'ตั้งค่า',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => _push(const SettingsPage()),
+            onPressed: () => push(const SettingsPage()),
           ),
         ],
       ),
@@ -106,10 +74,7 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                       ),
                       const Spacer(),
                       TextButton(
-                        onPressed: () {
-                          _search.clear();
-                          fvm.clear();
-                        },
+                        onPressed: fvm.clear,
                         child: const Text('ล้างตัวกรอง'),
                       ),
                     ],
@@ -143,16 +108,16 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
               )
             else ...[
               if (upcoming.isNotEmpty)
-                ..._section(
-                  context,
-                  'กำลังจะมาถึง',
-                  '${upcoming.length} รายการ',
-                  upcoming,
-                  now,
+                EntrySection(
+                  title: 'กำลังจะมาถึง',
+                  subtitle: '${upcoming.length} รายการ',
+                  items: upcoming,
+                  now: now,
                 ),
               if (upcoming.isNotEmpty && past.isNotEmpty)
                 SliverToBoxAdapter(child: _TodayDivider(now: now)),
-              ..._pastByYear(context, view),
+              for (final MapEntry(key: y, value: items) in view.pastByYear.entries)
+                EntrySection(title: '$y', subtitle: 'พ.ศ. ${be(y)}', items: items, now: now),
               const SliverToBoxAdapter(child: SizedBox(height: 144)),
             ],
           ],
@@ -160,45 +125,6 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
       ),
     );
   }
-
-  List<Widget> _section(
-    BuildContext context,
-    String title,
-    String sub,
-    List<Entry> items,
-    DateTime now,
-  ) => [
-    SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(width: 8),
-            Text(sub, style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ),
-      ),
-    ),
-    SliverPadding(
-      padding: EdgeInsets.zero,
-      sliver: SliverList.builder(
-        itemCount: items.length,
-        itemBuilder: (context, i) => EntryCard(
-          entry: items[i],
-          now: now,
-          onTap: () => openEditor(context, entry: items[i]),
-        ),
-      ),
-    ),
-  ];
-
-  List<Widget> _pastByYear(BuildContext context, TimelineViewState view) => [
-    for (final MapEntry(key: y, value: items) in view.pastByYear.entries)
-      ..._section(context, '$y', 'พ.ศ. ${be(y)}', items, view.now),
-  ];
 }
 
 class _TodayDivider extends StatelessWidget {

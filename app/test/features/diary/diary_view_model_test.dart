@@ -99,7 +99,7 @@ void main() {
 
   test('filter view model: showOnly replaces previous filter, clear resets', () {
     final f = container.read(timelineFilterProvider.notifier);
-    f.setQuery('x');
+    f.showOnly(day: now);
     f.showOnly(cats: {'health'});
     expect(container.read(timelineFilterProvider), const TimelineFilter(cats: {'health'}));
     f.clear();

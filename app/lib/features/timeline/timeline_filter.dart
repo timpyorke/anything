@@ -28,8 +28,6 @@ class TimelineFilterViewModel extends Notifier<TimelineFilter> {
     return const TimelineFilter();
   }
 
-  void setQuery(String q) => state = state.copyWith(query: q);
-
   void clear() => state = const TimelineFilter();
 
   /// ล้างแล้วกรองเฉพาะวัน/หมวดที่เลือก (ใช้จากหน้าภาพรวม)
