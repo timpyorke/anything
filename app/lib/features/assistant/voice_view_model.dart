@@ -1,121 +1,127 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../ai/ai_settings.dart';
+import '../../ai/pcm_audio.dart';
+import '../../app/providers.dart';
 
 part 'voice_view_model.freezed.dart';
+
+/// Gemma 4 รับเสียงได้ไม่เกิน 30 วินาทีต่อคลิป
+const maxVoiceSeconds = 30;
 
 @freezed
 abstract class VoiceState with _$VoiceState {
   const factory VoiceState({
-    @Default(false) bool listening,
-    @Default(false) bool cancel, // เลื่อนนิ้วขึ้นพอแล้ว → ปล่อยเพื่อยกเลิก
-    @Default('') String words,
+    @Default(false) bool listening, // กำลังอัดเสียง
+    @Default(false) bool transcribing, // กำลังถอดเสียงเป็นข้อความ
+    @Default(0) int seconds, // อัดมาแล้วกี่วินาที
     String? notice, // ข้อความแจ้งผู้ใช้ครั้งเดียว (View ฟังผ่าน ref.listen)
   }) = _VoiceState;
 }
 
-enum VoiceStart { started, needsSetup, unavailable, released }
+enum VoiceStart { started, needsSetup, needsVoiceModel, unavailable, released }
 
-/// ไม่ใช่ autoDispose: callback ของ plugin เสียงเรียกกลับมาเมื่อไหร่ก็ได้ จึงไม่ต้องเช็กว่า provider ยังอยู่
+/// ไม่ใช่ autoDispose: งานอัด/ถอดเสียงอาจเสร็จหลังหน้าถูกปิด จึงไม่ต้องเช็กว่า provider ยังอยู่
 final voiceViewModelProvider = NotifierProvider<VoiceViewModel, VoiceState>(VoiceViewModel.new);
 
-/// ใช้ระบบรู้จำเสียง "ในเครื่อง" เท่านั้น (onDevice) เพื่อไม่ส่งเสียงไปบริการภายนอก
+/// อัดเสียง → ถอดเป็นข้อความด้วย Gemma ในเครื่อง (เสียงไม่ออกจากเครื่อง)
 class VoiceViewModel extends Notifier<VoiceState> {
-  static const _cancelDistance = 90.0;
+  static const _noSpeech = 'ไม่ได้ยินเสียง แตะไมค์แล้วพูดใหม่ได้เลย';
 
-  final _speech = SpeechToText();
-  bool _ready = false, _pressing = false;
-  String? _speechError;
-  double _startY = 0;
+  /// เพิ่มทุกครั้งที่เริ่มใหม่หรือทิ้ง — งานรอบเก่าที่เพิ่งเสร็จจะรู้ว่าตัวเองถูกยกเลิกแล้ว
+  int _round = 0;
+  bool _starting = false;
+  Timer? _timer;
 
   @override
-  VoiceState build() => const VoiceState();
+  VoiceState build() {
+    ref.onDispose(() => _timer?.cancel());
+    return const VoiceState();
+  }
 
-  Future<VoiceStart> start(double globalY) async {
-    _pressing = true;
-    _startY = globalY;
-    state = state.copyWith(notice: null);
+  Future<VoiceStart> start() async {
+    if (_starting || state.listening || state.transcribing) return VoiceStart.released;
+    _starting = true;
+    final round = ++_round;
+    state = const VoiceState();
     HapticFeedback.mediumImpact();
-    // ยังไม่ตั้งค่า AI → ให้ view ถามก่อน อย่าให้ผู้ใช้พูดเสียเปล่า
-    if (await ref.read(aiSettingsProvider.notifier).resolveProvider() == null) {
-      _pressing = false;
-      return VoiceStart.needsSetup;
-    }
-    if (!_ready) {
-      try {
-        _ready = await _speech.initialize(onError: (e) => _speechError = e.errorMsg);
-      } on MissingPluginException {
-        // ปลั๊กอิน native ยังไม่ถูก build รวมเข้าแอป (ต้องรัน build ใหม่ทั้งหมด)
-        _ready = false;
+    try {
+      // ยังไม่ตั้งค่า AI หรือยังไม่มีโมเดลฟังเสียง → ให้ view ถามก่อน อย่าให้ผู้ใช้พูดเสียเปล่า
+      if (await ref.read(aiSettingsProvider.notifier).resolveProvider() == null) return VoiceStart.needsSetup;
+      if (!await ref.read(transcriberProvider).isReady()) return VoiceStart.needsVoiceModel;
+      final recorder = ref.read(voiceRecorderProvider);
+      if (!await recorder.hasPermission()) {
+        state = const VoiceState(notice: 'ใช้ไมโครโฟนไม่ได้ ตรวจสิทธิ์ในการตั้งค่าเครื่อง');
+        return VoiceStart.unavailable;
       }
-    }
-    if (!_ready) {
-      _pressing = false;
-      state = state.copyWith(notice: 'ใช้ไมโครโฟน/รู้จำเสียงไม่ได้ ตรวจสิทธิ์ในการตั้งค่าเครื่อง');
+      if (round != _round) return VoiceStart.released;
+      await recorder.start();
+      if (round != _round) {
+        await recorder.cancel();
+        return VoiceStart.released;
+      }
+      state = const VoiceState(listening: true);
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        state = state.copyWith(seconds: state.seconds + 1);
+        if (state.seconds >= maxVoiceSeconds) timer.cancel();
+      });
+      return VoiceStart.started;
+    } catch (e) {
+      state = VoiceState(notice: 'เปิดไมโครโฟนไม่ได้: $e');
       return VoiceStart.unavailable;
-    }
-    if (!_pressing) return VoiceStart.released; // ปล่อยนิ้วไปก่อนเริ่มฟังพร้อม
-    _speechError = null;
-    state = state.copyWith(listening: true, cancel: false, words: '');
-    await _speech.listen(
-      onResult: (r) => state = state.copyWith(words: r.recognizedWords),
-      listenOptions: SpeechListenOptions(
-        localeId: 'th_TH',
-        listenFor: const Duration(minutes: 2),
-        pauseFor: const Duration(seconds: 30),
-        onDevice: true,
-        partialResults: true,
-        listenMode: ListenMode.dictation,
-      ),
-    );
-    return VoiceStart.started;
-  }
-
-  void move(double globalY) {
-    if (!state.listening) return;
-    final cancel = _startY - globalY > _cancelDistance;
-    if (cancel != state.cancel) {
-      HapticFeedback.selectionClick();
-      state = state.copyWith(cancel: cancel);
+    } finally {
+      _starting = false;
     }
   }
 
-  /// ปล่อยนิ้ว: คืนข้อความที่จะส่งให้ AI หรือ null ถ้ายกเลิก/ไม่ได้ยิน (กรณีไม่ได้ยินจะตั้ง notice)
+  /// หยุดอัดและถอดเสียง: คืนข้อความที่จะส่งให้ AI หรือ null ถ้ายกเลิก/ไม่ได้ยิน/ผิดพลาด (จะตั้ง notice)
   Future<String?> finish() async {
-    _pressing = false;
     if (!state.listening) return null;
-    state = state.copyWith(notice: null);
-    await _speech.stop();
-    await Future<void>.delayed(const Duration(milliseconds: 350)); // รอผลสุดท้ายของคำสุดท้าย
-    final text = state.words.trim(), cancelled = state.cancel;
-    state = state.copyWith(listening: false);
-    if (cancelled) return null;
-    if (text.isEmpty) {
-      state = state.copyWith(
-        notice: _speechError == null
-            ? 'ไม่ได้ยินเสียง แตะไมค์แล้วพูดใหม่ได้เลย'
-            : 'รู้จำเสียงในเครื่องไม่ได้ ($_speechError) — ตรวจว่าติดตั้งภาษาไทยสำหรับพิมพ์/สั่งงานด้วยเสียงแล้ว',
-      );
-      return null;
+    final round = _round;
+    _timer?.cancel();
+    state = const VoiceState(transcribing: true);
+    String? text, notice;
+    try {
+      final pcm = await ref.read(voiceRecorderProvider).stop();
+      if (round != _round) return null;
+      if (!isSilent(pcm)) text = (await ref.read(transcriberProvider).transcribe(wavFromPcm(pcm))).trim();
+      if (text == null || text.isEmpty) {
+        text = null;
+        notice = _noSpeech;
+      }
+    } catch (e) {
+      notice = 'ถอดเสียงไม่สำเร็จ: $e';
     }
+    if (round != _round) return null;
+    state = VoiceState(notice: notice);
     return text;
   }
 
-  /// ผู้ใช้กด "ยกเลิก" ระหว่างฟัง: ทิ้งทุกอย่าง ไม่ส่ง AI
+  /// ผู้ใช้กด "ยกเลิก" ระหว่างอัดหรือถอดเสียง: ทิ้งทุกอย่าง ไม่ส่ง AI
   void discard() {
-    _pressing = false;
-    _speech.cancel();
+    _drop();
     state = const VoiceState();
   }
 
-  /// view ถูกปิดระหว่างฟัง
+  /// view ถูกปิดระหว่างอัดหรือถอดเสียง
   void abort() {
-    _pressing = false;
-    _speech.cancel();
+    final active = state.listening || state.transcribing;
+    _drop();
     // เลื่อนไปหลังขั้น unmount ของ widget tree (ห้ามแก้ provider ระหว่างนั้น)
-    if (state.listening) Future.microtask(() => state = const VoiceState());
+    if (active) {
+      Future.microtask(() {
+        if (ref.mounted) state = const VoiceState();
+      });
+    }
+  }
+
+  void _drop() {
+    _round++;
+    _timer?.cancel();
+    if (state.listening) ref.read(voiceRecorderProvider).cancel();
   }
 }

@@ -134,25 +134,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                 ),
               ],
-              if (ai.provider == AiProviderKind.onDevice)
-                ListTile(
-                  leading: const Icon(Icons.memory),
-                  title: const Text('Gemma 4 E2B (${OnDeviceProvider.sizeLabel})'),
-                  subtitle: Text(st.gemmaError ??
-                      (st.progress != null
-                          ? 'กำลังดาวน์โหลด $st.progress%'
-                          : st.gemmaInstalled == null
-                              ? 'กำลังตรวจสอบ…'
-                              : st.gemmaInstalled!
-                                  ? 'พร้อมใช้ — ทำงานในเครื่อง ไม่ต้องใช้เน็ต'
-                                  : 'ยังไม่ได้ดาวน์โหลด'),
-                      style: st.gemmaError == null ? null : TextStyle(color: scheme.error)),
-                  trailing: st.progress != null
-                      ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(value: st.progress! / 100, strokeWidth: 3))
-                      : st.gemmaInstalled == true
-                          ? TextButton(onPressed: _vm.removeGemma, child: const Text('ลบ'))
-                          : FilledButton(onPressed: st.gemmaInstalled == null ? null : _downloadGemma, child: const Text('ดาวน์โหลด')),
-                ),
+              const Divider(height: 32),
+              const _Header('โมเดลในเครื่อง (ใช้ฟังเสียง)'),
+              ListTile(
+                leading: const Icon(Icons.memory),
+                title: const Text('Gemma 4 E2B (${OnDeviceProvider.sizeLabel})'),
+                subtitle: Text(st.gemmaError ??
+                    (st.progress != null
+                        ? 'กำลังดาวน์โหลด ${st.progress}%'
+                        : st.gemmaInstalled == null
+                            ? 'กำลังตรวจสอบ…'
+                            : st.gemmaInstalled!
+                                ? 'พร้อมใช้ — ทำงานในเครื่อง ไม่ต้องใช้เน็ต'
+                                : 'ยังไม่ได้ดาวน์โหลด'),
+                    style: st.gemmaError == null ? null : TextStyle(color: scheme.error)),
+                trailing: st.progress != null
+                    ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(value: st.progress! / 100, strokeWidth: 3))
+                    : st.gemmaInstalled == true
+                        ? TextButton(onPressed: _vm.removeGemma, child: const Text('ลบ'))
+                        : FilledButton(onPressed: st.gemmaInstalled == null ? null : _downloadGemma, child: const Text('ดาวน์โหลด')),
+              ),
               const Divider(height: 32),
               const _Header('ข้อมูล'),
               ListTile(

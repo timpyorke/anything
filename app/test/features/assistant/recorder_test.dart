@@ -134,6 +134,46 @@ void main() {
     expect(r.actions[1].entry!.metrics.single.unit, 'ลิตร');
   });
 
+  test('new_category is usable in the same reply, even when listed after its use', () async {
+    final r = await run({
+      'actions': [
+        {'type': 'create', 'kind': 'event', 'date': '2026-12-01', 'category': 'pet', 'title': 'พาแมวหาหมอ'},
+        {'type': 'update', 'ref': 'R1', 'category': 'pet'},
+        {'type': 'new_category', 'key': 'pet', 'label': 'สัตว์เลี้ยง'},
+      ],
+    });
+    expect(r.actions.map((a) => a.type), ['new_category', 'create', 'update']);
+    expect(r.actions.map((a) => a.valid), everyElement(isTrue));
+    expect(r.actions[1].summary, contains('สัตว์เลี้ยง'));
+    expect(r.actions[2].summary, contains('สัตว์เลี้ยง'));
+  });
+
+  test('new_category rejects existing, repeated and malformed keys', () async {
+    final r = await run({
+      'actions': [
+        {'type': 'new_category', 'key': 'travel', 'label': 'เที่ยว'},
+        {'type': 'new_category', 'key': 'pet', 'label': 'สัตว์เลี้ยง'},
+        {'type': 'new_category', 'key': 'pet', 'label': 'สัตว์'},
+        {'type': 'new_category', 'key': 'งานบ้าน', 'label': 'งานบ้าน'},
+      ],
+    });
+    expect(r.actions.map((a) => a.valid), [false, true, false, false]);
+  });
+
+  test('prompt asks for a reply every time and creating what is missing', () {
+    final prompt = Recorder(const DiaryState(), clock: () => now).systemPrompt(now);
+    expect(prompt, contains('reply ห้ามว่าง'));
+    expect(prompt, contains('(ยังไม่มี)'));
+    expect(prompt, contains('"new_category"'));
+    expect(prompt, contains('"new_metric"'));
+  });
+
+  test('an empty reply from the model is filled in', () {
+    final rec = Recorder(state, clock: () => now);
+    expect(rec.parse('{"actions":[]}', now).reply, isNotEmpty);
+    expect(rec.parse('{"reply":" ","questions":["วันไหน"]}', now).reply, isNotEmpty);
+  });
+
   test('recurring payment proposal', () async {
     final r = await run({
       'actions': [

@@ -1,4 +1,7 @@
+import 'dart:ui' show Color;
+
 import 'package:anything/app/providers.dart';
+import 'package:anything/domain/category.dart';
 import 'package:anything/domain/entry.dart';
 import 'package:anything/domain/metric.dart';
 import 'package:anything/features/diary/diary_view_model.dart';
@@ -57,6 +60,14 @@ void main() {
     final e = await vm.save(Entry(date: now, category: 'health', title: 'ของต้องทำ', body: '- [ ] a\n- [ ] b'));
     await vm.toggleCheck(e, 1, true);
     expect(container.read(diaryViewModelProvider).entries.single.body, '- [ ] a\n- [x] b');
+  });
+
+  test('addCategory makes the new category usable by entries', () async {
+    final vm = container.read(diaryViewModelProvider.notifier);
+    await vm.addCategory(const EntryCategory(key: 'pet', label: 'สัตว์เลี้ยง', color: Color(0xff12a594), sort: 2));
+    await vm.save(Entry(date: now, category: 'pet', title: 'พาแมวหาหมอ'));
+    expect(container.read(diaryViewModelProvider).categoryKeys, contains('pet'));
+    expect(container.read(diaryViewModelProvider).entries.single.category, 'pet');
   });
 
   test('addMetricDef adds to state', () async {

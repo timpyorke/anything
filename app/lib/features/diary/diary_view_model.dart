@@ -63,6 +63,11 @@ class DiaryViewModel extends Notifier<DiaryState> {
   Future<void> toggleCheck(Entry e, int index, bool done) =>
       save(e.copyWith(body: md.toggleCheck(e.body, index, done)));
 
+  Future<void> addCategory(EntryCategory c) async {
+    await _repo.addCategory(c);
+    state = state.copyWith(categories: [...state.categories, c]..sort((a, b) => a.sort.compareTo(b.sort)));
+  }
+
   Future<void> addMetricDef(MetricDef m) async {
     await _repo.addMetricDef(m);
     state = state.copyWith(metricDefs: [...state.metricDefs, m]..sort((a, b) => a.key.compareTo(b.key)));

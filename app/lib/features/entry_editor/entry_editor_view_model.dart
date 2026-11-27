@@ -85,18 +85,18 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
     state = state.copyWith(errors: errors);
     if (errors.isNotEmpty) return;
     state = state.copyWith(saving: true);
+    // ผู้ใช้กดกลับได้ระหว่างบันทึก (provider ถูกทิ้ง) จึงเช็ก ref.mounted ก่อนแตะ state
     try {
       await ref.read(diaryViewModelProvider.notifier).save(out);
-      state = state.copyWith(exit: EditorExit.saved);
+      if (ref.mounted) state = state.copyWith(exit: EditorExit.saved, saving: false);
     } catch (err) {
-      state = state.copyWith(errors: ['บันทึกไม่สำเร็จ: $err']);
-    } finally {
-      state = state.copyWith(saving: false);
+      if (ref.mounted) state = state.copyWith(errors: ['บันทึกไม่สำเร็จ: $err'], saving: false);
     }
   }
 
   Future<void> delete() async {
     await ref.read(diaryViewModelProvider.notifier).delete(state.entry);
+    if (!ref.mounted) return;
     state = state.copyWith(exit: EditorExit.deleted);
   }
 }

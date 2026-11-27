@@ -4,8 +4,6 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ใช้ไมโครโฟนเพื่อฟังเสียงที่คุณพูดบันทึกกับ AI</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>แปลงเสียงพูดเป็นข้อความเพื่อบันทึกกับ AI</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

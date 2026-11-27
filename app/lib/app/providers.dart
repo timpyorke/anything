@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:supabase_flutter/supabase_flutter.dart' as sb show AuthState;
 
+import '../ai/on_device_provider.dart';
+import '../ai/voice_recorder.dart';
 import '../data/supabase_diary_repository.dart';
 import '../domain/repositories/diary_repository.dart';
 
@@ -24,3 +26,12 @@ final currentUserIdProvider = Provider<String?>((ref) {
   ref.watch(authChangesProvider);
   return ref.watch(supabaseClientProvider).auth.currentSession?.user.id;
 });
+
+final voiceRecorderProvider = Provider<VoiceRecorder>((ref) {
+  final recorder = MicRecorder();
+  ref.onDispose(recorder.dispose);
+  return recorder;
+});
+
+/// ถอดเสียงเป็นข้อความในเครื่อง (ใช้ Gemma เสมอ ไม่ว่าจะเลือก AI ตัวไหนไว้บันทึก)
+final transcriberProvider = Provider<Transcriber>((ref) => const GemmaTranscriber());

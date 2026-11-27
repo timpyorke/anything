@@ -12,6 +12,7 @@ abstract class DiaryRepository {
   Future<Entry> update(Entry e);
   Future<void> softDelete(String id);
   Future<void> restore(String id);
+  Future<void> addCategory(EntryCategory c);
   Future<void> addMetricDef(MetricDef m);
 
   Future<void> logAi({

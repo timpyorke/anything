@@ -30,16 +30,20 @@ class SettingsViewModel extends Notifier<SettingsState> {
     return const SettingsState();
   }
 
+  // provider นี้ถูกทิ้งเมื่อปิดหน้าตั้งค่า: หลัง await ต้องเช็ก ref.mounted ก่อนแตะ state
+  // งานยาว (ดาวน์โหลด, นำเข้า) ใช้ keepAlive ให้กลับมาเปิดหน้าแล้วยังเห็นความคืบหน้า ไม่สั่งซ้ำ
   Future<void> checkGemma() async {
+    if (!ref.mounted) return;
     try {
       final ok = await OnDeviceProvider.isInstalled();
-      state = state.copyWith(gemmaInstalled: ok);
+      if (ref.mounted) state = state.copyWith(gemmaInstalled: ok);
     } catch (e) {
-      state = state.copyWith(gemmaError: '$e');
+      if (ref.mounted) state = state.copyWith(gemmaError: '$e');
     }
   }
 
   Future<void> downloadGemma() async {
+    final link = ref.keepAlive();
     state = state.copyWith(progress: 0, gemmaError: null);
     try {
       await OnDeviceProvider.install(onProgress: (p) => state = state.copyWith(progress: p));
@@ -48,6 +52,7 @@ class SettingsViewModel extends Notifier<SettingsState> {
       state = state.copyWith(gemmaError: 'ดาวน์โหลดไม่สำเร็จ: $e');
     } finally {
       state = state.copyWith(progress: null);
+      link.close();
     }
   }
 
@@ -59,11 +64,13 @@ class SettingsViewModel extends Notifier<SettingsState> {
   Future<void> saveKey(String key) async {
     state = state.copyWith(notice: null);
     await ref.read(aiSettingsProvider.notifier).setStudioKey(key);
+    if (!ref.mounted) return;
     state = state.copyWith(notice: 'บันทึก API key แล้ว (เก็บในเครื่องเท่านั้น)');
   }
 
   /// นำเข้าไฟล์ export ของระบบเดิม ผลสรุปอยู่ที่ state.notice
   Future<void> importFile(Uint8List bytes) async {
+    final link = ref.keepAlive();
     state = state.copyWith(importing: true, notice: null);
     String notice;
     try {
@@ -74,5 +81,6 @@ class SettingsViewModel extends Notifier<SettingsState> {
       notice = 'นำเข้าไม่สำเร็จ: $e';
     }
     state = state.copyWith(importing: false, notice: notice);
+    link.close();
   }
 }

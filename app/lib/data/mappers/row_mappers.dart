@@ -17,6 +17,14 @@ EntryCategory categoryFromRow(Map<String, dynamic> r) => EntryCategory(
       sort: (r['sort'] as int?) ?? 0,
     );
 
+Map<String, dynamic> categoryToRow(EntryCategory c) => {
+      'key': c.key,
+      'label': c.label,
+      'color': '#${(c.color.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0')}',
+      'description': c.description,
+      'sort': c.sort,
+    };
+
 MetricDef metricDefFromRow(Map<String, dynamic> r) => MetricDef(
       key: r['key'] as String,
       label: r['label'] as String,

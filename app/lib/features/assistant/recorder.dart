@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:ui' show Color;
 
 import '../../ai/llm_provider.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/markdown.dart';
+import '../../domain/category.dart';
 import '../../domain/entry.dart';
 import '../../domain/entry_validation.dart';
 import '../../domain/metric.dart';
@@ -15,7 +17,7 @@ class ProposedAction {
   ProposedAction({required this.type, required this.summary, this.detail = '', this.errors = const [], this.run, this.entry, bool? selected})
       : selected = selected ?? errors.isEmpty;
 
-  final String type; // create | update | check | new_metric
+  final String type; // create | update | check | new_category | new_metric
   final String summary;
   final String detail;
   final List<String> errors;
@@ -23,6 +25,9 @@ class ProposedAction {
   final Entry? entry; // สำหรับเปิดแก้ไขเองก่อนบันทึก
   final bool selected;
   bool get valid => errors.isEmpty && run != null;
+
+  /// สร้างหมวด/metric ใหม่ — ต้องทำก่อน action อื่นที่ใช้ key นั้น
+  bool get isDefinition => type == 'new_category' || type == 'new_metric';
 
   ProposedAction withSelected(bool value) =>
       ProposedAction(type: type, summary: summary, detail: detail, errors: errors, run: run, entry: entry, selected: value);
@@ -79,11 +84,15 @@ class Recorder {
       ..writeln('คุณคือผู้ช่วยบันทึกชีวิตส่วนตัว แปลงข้อความภาษาธรรมชาติเป็นการบันทึกที่ถูกต้อง แล้วตอบเป็น JSON เท่านั้น')
       ..writeln('วันนี้: ${ymd(now)} (วัน${thWeekdays[now.weekday - 1]}) · ใช้ปี ค.ศ. เสมอ (พ.ศ. − 543)')
       ..writeln()
-      ..writeln('## หมวด (category) — ใช้ key เท่านั้น')
-      ..writeln([for (final c in state.categories) '- ${c.key}: ${c.description.isEmpty ? c.label : c.description}'].join('\n'))
+      ..writeln('## หมวด (category) — อ้างด้วย key')
+      ..writeln(state.categories.isEmpty
+          ? '- (ยังไม่มี)'
+          : [for (final c in state.categories) '- ${c.key}: ${c.description.isEmpty ? c.label : c.description}'].join('\n'))
       ..writeln()
-      ..writeln('## metric — ใช้ key เท่านั้น แปลงค่าเป็นหน่วยนี้ก่อน')
-      ..writeln([for (final m in state.metricDefs) '- ${m.key} (${m.unit.isEmpty ? 'ไม่มีหน่วย' : m.unit})${m.description.isEmpty ? '' : ': ${m.description}'}'].join('\n'))
+      ..writeln('## metric — อ้างด้วย key แปลงค่าเป็นหน่วยนี้ก่อน')
+      ..writeln(state.metricDefs.isEmpty
+          ? '- (ยังไม่มี)'
+          : [for (final m in state.metricDefs) '- ${m.key} (${m.unit.isEmpty ? 'ไม่มีหน่วย' : m.unit})${m.description.isEmpty ? '' : ': ${m.description}'}'].join('\n'))
       ..writeln()
       ..writeln('## รายการที่มีอยู่ (อ้างถึงด้วยรหัส R…)')
       ..writeln('กำลังจะมาถึง:')
@@ -106,6 +115,7 @@ class Recorder {
 
   static const _rules = '''
 ## กฎการตัดสินใจ
+- ตอบทุกข้อความ: reply ห้ามว่าง — ทักทายก็ทักตอบ; ถูกถามก็ตอบจากรายการที่เห็นด้านบน ถ้าไม่พบให้บอกตรงๆ ว่าไม่พบ
 - ผู้ใช้เล่าว่าทำหรือเจออะไร แม้สั้นมาก (เช่น "กินข้าวเย็น" "ไปวิ่งมา") → ต้องมีอย่างน้อย 1 action: create kind "daily" (ไม่บอกวัน = วันนี้) ใส่เรื่องที่เล่าใน body
 - ตัวเลขประจำ (น้ำหนัก การนอน อารมณ์ ก้าวเดิน) และโน้ตสั้นประจำวัน → create kind "daily" (วันละ 1 รายการ ระบบรวมกับของเดิมให้)
 - เรื่องที่ควรเห็นบน timeline (ทริป นัดหมาย ซื้อของใหญ่ สอบ เปลี่ยนงาน) → create kind "event"; หลายวันใส่ end_date
@@ -114,13 +124,16 @@ class Recorder {
 - ผู้ใช้บอกว่าทำสิ่งใน checklist แล้ว → type "check" กับรายการเดิม ห้ามสร้างรายการใหม่
 - แผนเปลี่ยน (เลื่อนวัน เปลี่ยนชื่อ) → type "update" กับรายการเดิม
 - แผนที่ต้องเตรียมตัว → ใส่ checklist ใน body เป็นบรรทัด "- [ ] ..."
-- ตัวเลขที่จะติดตามซ้ำแต่ไม่มี key → type "new_metric" ก่อน แล้วค่อยใช้ key นั้น; ตัวเลขครั้งเดียวให้เขียนใน body
-- ห้ามแต่งข้อมูลที่ผู้ใช้ไม่ได้บอก; ถ้าขาดข้อมูลสำคัญ (วันที่ของเรื่องใหญ่ จำนวนเงิน) ให้ถามใน questions และไม่ต้องสร้าง action นั้น
-- title สั้น กระชับ เป็นภาษาไทย; reply สรุปสั้นๆ ว่าจะบันทึกอะไร (1–2 ประโยค)''';
+- เลือกหมวดเดิมที่ตรงความหมายก่อน; ไม่มีหมวดที่ตรง (หรือยังไม่มีหมวด) หรือผู้ใช้ขอหมวดใหม่ → type "new_category" แล้วใช้ key นั้นใน action ถัดไป ห้ามทิ้งเรื่องเพราะไม่มีหมวด
+- ตัวเลขที่ควรติดตามซ้ำแต่ไม่มี key → type "new_metric" แล้วใช้ key นั้นใน action ถัดไป; ตัวเลขครั้งเดียวให้เขียนใน body
+- ใช้ key ได้เฉพาะที่มีในรายการด้านบน หรือที่สร้างใน actions ชุดเดียวกัน
+- ห้ามแต่งข้อมูลที่ผู้ใช้ไม่ได้บอก; ถ้าขาดข้อมูลสำคัญ (วันที่ของเรื่องใหญ่ จำนวนเงิน) ให้ถามใน questions และไม่ต้องสร้าง action นั้น โดย reply บอกว่ารอข้อมูลอะไร
+- title สั้น กระชับ เป็นภาษาไทย; reply สั้น (1–2 ประโยค): สรุปว่าจะบันทึกอะไร หรือตอบสิ่งที่ถูกถาม''';
 
   static const _schema = '''
 ## รูปแบบคำตอบ (JSON object เท่านั้น ไม่มีข้อความอื่น)
 {"reply": "...", "questions": ["..."], "actions": [
+  {"type": "new_category", "key": "pet", "label": "สัตว์เลี้ยง", "description": "เรื่องของสัตว์เลี้ยง: อาหาร หาหมอ วัคซีน"},
   {"type": "create", "kind": "event", "date": "YYYY-MM-DD", "end_date": null, "category": "travel", "title": "...", "body": "...", "metrics": [{"key": "weight", "value": 74.5}], "every": null, "times": null},
   {"type": "create", "kind": "daily", "date": "YYYY-MM-DD", "category": "daily", "title": "กินข้าวเย็น", "body": "กินข้าวเย็น"},
   {"type": "update", "ref": "R2", "date": "YYYY-MM-DD", "end_date": null, "title": "...", "body": "..."},
@@ -136,23 +149,66 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     if (json == null) {
       return AiResult(reply: 'AI ตอบกลับในรูปแบบที่อ่านไม่ได้ ลองพิมพ์ใหม่อีกครั้ง', questions: const [], actions: const [], raw: raw);
     }
+    final newCategories = <String, EntryCategory>{};
     final newMetrics = <String, MetricDef>{};
+    final proposed = [for (final a in (json['actions'] as List? ?? const []).whereType<Map>()) Map<String, dynamic>.from(a)];
+    bool isDefinition(Map<String, dynamic> m) => m['type'] == 'new_category' || m['type'] == 'new_metric';
     final actions = <ProposedAction>[];
-    for (final a in (json['actions'] as List? ?? const []).whereType<Map>()) {
-      final m = Map<String, dynamic>.from(a);
+    // ตรวจการสร้างหมวด/metric ก่อน เผื่อ AI เรียงไว้หลัง action ที่ใช้ key นั้น
+    for (final m in [...proposed.where(isDefinition), ...proposed.where((m) => !isDefinition(m))]) {
       actions.add(switch (m['type']) {
+        'new_category' => _newCategory(m, newCategories),
         'new_metric' => _newMetric(m, newMetrics),
-        'create' => _create(m, now, newMetrics),
-        'update' => _update(m),
+        'create' => _create(m, now, newCategories, newMetrics),
+        'update' => _update(m, newCategories),
         'check' => _check(m),
         _ => ProposedAction(type: '?', summary: 'คำสั่งที่ไม่รู้จัก: ${m['type']}', errors: const ['ไม่รองรับ']),
       });
     }
+    final questions = [for (final q in (json['questions'] as List? ?? const [])) if ('$q'.trim().isNotEmpty) '$q'.trim()];
+    var reply = '${json['reply'] ?? ''}'.trim();
+    // โมเดลเล็กอาจไม่ใส่ reply — ผู้ใช้ต้องได้คำตอบเสมอ
+    if (reply.isEmpty) {
+      reply = actions.any((a) => a.valid)
+          ? 'ตรวจรายการด้านล่างก่อนบันทึก'
+          : questions.isNotEmpty
+              ? 'ขอข้อมูลเพิ่มอีกนิด'
+              : 'ยังไม่มีคำตอบ ลองพิมพ์ใหม่อีกครั้ง';
+    }
     return AiResult(
-      reply: (json['reply'] as String?)?.trim() ?? '',
-      questions: [for (final q in (json['questions'] as List? ?? const [])) if ('$q'.trim().isNotEmpty) '$q'.trim()],
+      reply: reply,
+      questions: questions,
       actions: actions,
       raw: json,
+    );
+  }
+
+  /// สีของหมวดใหม่ (โทนเดียวกับหมวดเริ่มต้น) วนใช้ตามลำดับ
+  static const _palette = [0xffe5484d, 0xffb7791f, 0xff30a46c, 0xfff76b15, 0xff3e63dd, 0xff8e4ec6, 0xffd6409f, 0xff12a594];
+
+  ProposedAction _newCategory(Map<String, dynamic> m, Map<String, EntryCategory> pending) {
+    final key = '${m['key'] ?? ''}'.trim().toLowerCase();
+    final label = '${m['label'] ?? key}'.trim();
+    final count = state.categories.length + pending.length;
+    final category = EntryCategory(
+      key: key,
+      label: label,
+      color: Color(_palette[count % _palette.length]),
+      description: '${m['description'] ?? ''}'.trim(),
+      sort: [...state.categories, ...pending.values].fold(0, (next, c) => c.sort >= next ? c.sort + 1 : next),
+    );
+    final errors = <String>[
+      if (!_keyPattern.hasMatch(key)) 'ชื่อ key ของหมวดต้องเป็นภาษาอังกฤษตัวเล็ก เช่น pet',
+      if (label.isEmpty || label.length > 40) 'ชื่อหมวดต้องยาว 1–40 ตัวอักษร',
+      if (state.categoryKeys.contains(key) || pending.containsKey(key)) 'มีหมวด "$key" อยู่แล้ว',
+    ];
+    if (errors.isEmpty) pending[key] = category;
+    return ProposedAction(
+      type: 'new_category',
+      summary: 'สร้างหมวดใหม่: $label',
+      detail: category.description,
+      errors: errors,
+      run: (s) => s.addCategory(category),
     );
   }
 
@@ -160,7 +216,7 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     final key = '${m['key'] ?? ''}'.trim().toLowerCase();
     final def = MetricDef(key: key, label: '${m['label'] ?? key}'.trim(), unit: '${m['unit'] ?? ''}'.trim());
     final errors = <String>[
-      if (!RegExp(r'^[a-z][a-z0-9_]{0,31}$').hasMatch(key)) 'ชื่อ metric ต้องเป็นภาษาอังกฤษตัวเล็ก เช่น water',
+      if (!_keyPattern.hasMatch(key)) 'ชื่อ metric ต้องเป็นภาษาอังกฤษตัวเล็ก เช่น water',
       if (state.metricKeys.contains(key)) 'มี metric "$key" อยู่แล้ว',
     ];
     if (errors.isEmpty) pending[key] = def;
@@ -172,7 +228,7 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     );
   }
 
-  ProposedAction _create(Map<String, dynamic> m, DateTime now, Map<String, MetricDef> pending) {
+  ProposedAction _create(Map<String, dynamic> m, DateTime now, Map<String, EntryCategory> newCategories, Map<String, MetricDef> pending) {
     final errors = <String>[];
     final date = _date(m['date'], errors, 'date') ?? now;
     final end = m['end_date'] == null ? null : _date(m['end_date'], errors, 'end_date');
@@ -200,7 +256,8 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
       source: 'ai',
       metrics: metrics,
     );
-    errors.addAll(validateEntry(entry, categories: state.categoryKeys, metricKeys: {...state.metricKeys, ...pending.keys}));
+    errors.addAll(validateEntry(entry,
+        categories: {...state.categoryKeys, ...newCategories.keys}, metricKeys: {...state.metricKeys, ...pending.keys}));
 
     // daily ของวันเดียวกันมีอยู่แล้ว → รวมเข้าไปแทนการสร้างใหม่
     final existingDaily = kind == 'daily' ? state.dailyOn(date) : null;
@@ -239,7 +296,7 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
         : end == null
             ? fmtDate(date)
             : '${fmtDate(date)} – ${fmtDate(end)}';
-    final cat = state.category(entry.category).label;
+    final cat = (newCategories[entry.category] ?? state.category(entry.category)).label;
     return ProposedAction(
       type: 'create',
       summary: kind == 'daily'
@@ -252,7 +309,7 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
     );
   }
 
-  ProposedAction _update(Map<String, dynamic> m) {
+  ProposedAction _update(Map<String, dynamic> m, Map<String, EntryCategory> newCategories) {
     final target = _target(m['ref']);
     if (target == null) return ProposedAction(type: 'update', summary: 'แก้ไขรายการ ${m['ref']}', errors: const ['ไม่พบรายการที่อ้างถึง']);
     final errors = <String>[];
@@ -285,12 +342,12 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
             changes.add('แก้เนื้อหา');
             e = e.copyWith(body: v.trim());
           case 'category':
-            changes.add('หมวด → ${state.category(v.trim()).label}');
+            changes.add('หมวด → ${(newCategories[v.trim()] ?? state.category(v.trim())).label}');
             e = e.copyWith(category: v.trim());
         }
       }
     }
-    errors.addAll(state.validate(e));
+    errors.addAll(validateEntry(e, categories: {...state.categoryKeys, ...newCategories.keys}, metricKeys: state.metricKeys));
     final updated = e;
     if (changes.isEmpty) errors.add('ไม่มีอะไรเปลี่ยน');
     return ProposedAction(
@@ -338,6 +395,9 @@ actions ว่างได้เฉพาะเมื่อเป็นคำท
 
   String _describeMetrics(List<MetricValue> ms) =>
       ms.map((m) => '${state.metricLabel(m.key)} ${_num(m.value)}${m.unit.isEmpty ? '' : ' ${m.unit}'}').join(', ');
+
+  /// รูปแบบ key เดียวกับ CHECK constraint ของตาราง categories และ metric_defs
+  static final _keyPattern = RegExp(r'^[a-z][a-z0-9_]{0,31}$');
 
   static String _num(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 

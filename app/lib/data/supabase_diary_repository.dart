@@ -58,6 +58,9 @@ class SupabaseDiaryRepository implements DiaryRepository {
   Future<void> restore(String id) => db.from('entries').update({'deleted_at': null}).eq('id', id);
 
   @override
+  Future<void> addCategory(EntryCategory c) => db.from('categories').insert(categoryToRow(c));
+
+  @override
   Future<void> addMetricDef(MetricDef m) => db.from('metric_defs').insert(metricDefToRow(m));
 
   @override

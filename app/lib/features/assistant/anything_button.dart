@@ -6,9 +6,9 @@ import 'turn_view_model.dart';
 import 'voice_view_model.dart';
 
 /// กล่องพิมพ์หน้าแรกแบบแอป AI: พิมพ์แล้วกดส่ง หรือกดไมค์ (ตอนช่องว่าง) เพื่อพูด → กดส่งอีกครั้ง
-/// → ผลขึ้นเป็น bottom sheet ให้ยืนยัน (ปุ่ม "ยกเลิก" ระหว่างฟังเพื่อทิ้ง)
+/// → ผลขึ้นเป็น bottom sheet ให้ยืนยัน (ปุ่ม "ยกเลิก" ระหว่างอัด/ถอดเสียงเพื่อทิ้ง)
 ///
-/// ใช้ระบบรู้จำเสียง "ในเครื่อง" เท่านั้น (onDevice) เพื่อไม่ส่งเสียงไปบริการภายนอก
+/// เสียงถูกถอดเป็นข้อความด้วย Gemma ในเครื่อง ไม่ส่งเสียงไปบริการภายนอก
 class AnythingButton extends ConsumerStatefulWidget {
   const AnythingButton({super.key});
 
@@ -46,7 +46,14 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
   Future<void> _startVoice() async {
     _focus.unfocus();
     final nav = Navigator.of(context);
-    if (await _vm.start(0) == VoiceStart.needsSetup) await ensureLlmProvider(nav, ref);
+    switch (await _vm.start()) {
+      case VoiceStart.needsSetup:
+        await ensureLlmProvider(nav, ref);
+      case VoiceStart.needsVoiceModel:
+        await offerVoiceModelSetup(nav);
+      case VoiceStart.started || VoiceStart.unavailable || VoiceStart.released:
+        break;
+    }
   }
 
   Future<void> _end() async {
@@ -80,6 +87,10 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     ref.listen(voiceViewModelProvider.select((v) => v.notice), (_, notice) {
       if (notice != null) _toast(notice);
     });
+    // อัดครบความยาวสูงสุดแล้ว → หยุดและส่งให้เลย
+    ref.listen(voiceViewModelProvider.select((v) => v.seconds >= maxVoiceSeconds), (_, full) {
+      if (full) _end();
+    });
     final v = ref.watch(voiceViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
     // TextFieldTapRegion: แตะปุ่มในกล่องไม่นับเป็น "แตะข้างนอก" คีย์บอร์ดจึงไม่หุบ
@@ -98,7 +109,11 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: v.listening ? _listeningContent(context, v.words) : _inputContent(context),
+              children: v.listening
+                  ? _listeningContent(context, v.seconds)
+                  : v.transcribing
+                      ? _transcribingContent(context)
+                      : _inputContent(context),
             ),
           ),
         ),
@@ -147,29 +162,77 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     ];
   }
 
-  List<Widget> _listeningContent(BuildContext context, String words) {
+  List<Widget> _listeningContent(BuildContext context, int seconds) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final left = maxVoiceSeconds - seconds;
+    final color = left <= 5 ? scheme.error : scheme.onSurface; // 5 วินาทีสุดท้ายเตือนด้วยสีแดง
     return [
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 144),
-        // reverse: พูดยาวแล้วยังเห็นคำล่าสุดเสมอ
-        child: SingleChildScrollView(
-          reverse: true,
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Text(
-            words.isEmpty ? 'กำลังฟัง… พูดได้เลย' : words,
-            style: theme.textTheme.bodyLarge?.copyWith(color: words.isEmpty ? scheme.onSurfaceVariant : null),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('กำลังอัดเสียง… พูดได้เลย', style: theme.textTheme.bodyLarge),
+              Text(
+                'เหลือ $left วินาที · ครบแล้วส่งให้เอง',
+                style: theme.textTheme.bodySmall?.copyWith(color: left <= 5 ? scheme.error : null),
+              ),
+            ]),
           ),
-        ),
+          const SizedBox(width: 12),
+          _countdownRing(context, seconds: seconds, color: color),
+        ]),
       ),
       Row(children: [
         IconButton(icon: const Icon(Icons.close), tooltip: 'ยกเลิก', onPressed: _vm.discard),
-        const SizedBox(width: 4),
-        Icon(Icons.graphic_eq, size: 20, color: scheme.error),
-        const SizedBox(width: 6),
-        Expanded(child: Text('กำลังฟัง', style: theme.textTheme.bodySmall)),
+        const Spacer(),
         _primaryButton(context, icon: Icons.arrow_upward, tooltip: 'หยุดและส่ง', onPressed: _end),
+      ]),
+    ];
+  }
+
+  /// วงนับถอยหลัง: ตัวเลขคือวินาทีที่เหลือ วงค่อยๆ หมดไปจนครบเวลา
+  Widget _countdownRing(BuildContext context, {required int seconds, required Color color}) {
+    final theme = Theme.of(context);
+    final left = maxVoiceSeconds - seconds;
+    return SizedBox.square(
+      dimension: 48,
+      child: Stack(fit: StackFit.expand, children: [
+        // ตัวจับเวลาเดินทีละวินาที จึงไล่ค่าไปถึงวินาทีถัดไปให้วงเคลื่อนต่อเนื่อง
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 1, end: ((left - 1) / maxVoiceSeconds).clamp(0, 1)),
+          duration: const Duration(seconds: 1),
+          builder: (context, remaining, _) => CircularProgressIndicator(
+            value: remaining,
+            strokeWidth: 4,
+            color: color,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+          ),
+        ),
+        Center(child: Text('$left', style: theme.textTheme.titleMedium?.copyWith(color: color))),
+      ]),
+    );
+  }
+
+  List<Widget> _transcribingContent(BuildContext context) {
+    final theme = Theme.of(context);
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Row(children: [
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'กำลังถอดเสียงในเครื่อง…',
+              style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ]),
+      ),
+      Row(children: [
+        IconButton(icon: const Icon(Icons.close), tooltip: 'ยกเลิก', onPressed: _vm.discard),
       ]),
     ];
   }
@@ -196,12 +259,15 @@ class _ResultSheet extends ConsumerWidget {
   final ScaffoldMessengerState messenger;
 
   Future<void> _apply(BuildContext context, WidgetRef ref) async {
-    final navigator = Navigator.of(context);
-    final vm = ref.read(turnViewModelProvider(text).notifier);
-    final n = await vm.apply();
-    if (ref.read(turnViewModelProvider(text)).applied) {
-      messenger.showSnackBar(SnackBar(content: Text('บันทึกแล้ว $n รายการ')));
-      navigator.pop();
+    final navigator = Navigator.of(context), route = ModalRoute.of(context);
+    final result = await ref.read(turnViewModelProvider(text).notifier).apply();
+    // ผู้ใช้อาจปิด sheet ไปแล้วระหว่างบันทึก: ห้าม pop ซ้ำ และต้องแจ้ง error ทาง snackbar แทน
+    final open = route?.isCurrent ?? false;
+    if (result.error == null) {
+      messenger.showSnackBar(SnackBar(content: Text('บันทึกแล้ว ${result.count} รายการ')));
+      if (open) navigator.pop();
+    } else if (!open) {
+      messenger.showSnackBar(SnackBar(content: Text(result.error!)));
     }
   }
 

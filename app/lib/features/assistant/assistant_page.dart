@@ -18,14 +18,31 @@ Future<LlmProvider?> ensureLlmProvider(NavigatorState nav, WidgetRef ref) async 
   final kind = ref.read(aiSettingsProvider).provider;
   final p = await settings.resolveProvider();
   if (p != null) return p;
+  await _offerSettings(
+    nav,
+    title: 'ยังไม่ได้ตั้งค่า AI',
+    message: kind == AiProviderKind.aiStudio
+        ? 'ใส่ API key ของ Google AI Studio ในหน้าตั้งค่าก่อน'
+        : 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน',
+  );
+  return null;
+}
+
+/// การพูดต้องมี Gemma ในเครื่องเสมอ แม้จะเลือก AI ตัวอื่นไว้บันทึก
+Future<void> offerVoiceModelSetup(NavigatorState nav) => _offerSettings(
+      nav,
+      title: 'ยังไม่มีโมเดลฟังเสียง',
+      message: 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน '
+          'เสียงจะถูกถอดเป็นข้อความในเครื่อง',
+    );
+
+Future<void> _offerSettings(NavigatorState nav, {required String title, required String message}) async {
   final setUp = await showDialog<bool>(
     // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
     context: nav.context,
     builder: (c) => AlertDialog(
-      title: const Text('ยังไม่ได้ตั้งค่า AI'),
-      content: Text(kind == AiProviderKind.aiStudio
-          ? 'ใส่ API key ของ Google AI Studio ในหน้าตั้งค่าก่อน'
-          : 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน'),
+      title: Text(title),
+      content: Text(message),
       actions: [
         TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('ไว้ก่อน')),
         FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ไปตั้งค่า')),
@@ -35,7 +52,6 @@ Future<LlmProvider?> ensureLlmProvider(NavigatorState nav, WidgetRef ref) async 
   if (setUp == true) {
     await nav.push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
   }
-  return null;
 }
 
 class TurnView extends ConsumerWidget {
@@ -91,7 +107,7 @@ class TurnView extends ConsumerWidget {
               if (r.actions.isEmpty && r.questions.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text('ยังไม่มีอะไรถูกบันทึก ลองเล่าให้ละเอียดขึ้นแล้วส่งอีกครั้ง', style: TextStyle(color: scheme.error)),
+                  child: Text('ยังไม่มีอะไรถูกบันทึก', style: TextStyle(color: scheme.onSurfaceVariant)),
                 ),
               if (r.actions.isNotEmpty) const Divider(height: 20),
               for (final (i, a) in r.actions.indexed) _ActionTile(action: a, locked: turn.applied || turn.busy, vm: vm, index: i),

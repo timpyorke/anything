@@ -39,6 +39,8 @@ class FakeDiaryRepository implements DiaryRepository {
   @override
   Future<void> restore(String id) async => deleted.remove(id);
   @override
+  Future<void> addCategory(EntryCategory c) async => cats.add(c);
+  @override
   Future<void> addMetricDef(MetricDef m) async => metrics.add(m);
   @override
   Future<void> logAi({required String provider, required String model, required String input, Object? output, required String status, String? error}) async {}
