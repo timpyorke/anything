@@ -14,7 +14,13 @@ abstract class LlmProvider {
   String get model;
 
   /// ส่ง [system] + [user] แล้วคืนข้อความที่ควรเป็น JSON object
-  Future<String> generateJson({required String system, required String user});
+  /// เมื่อ [cancel] จบ ให้หยุดคำขอ — จะโยน [LlmCancelled] หรือคืนผลที่ผู้เรียกต้องทิ้ง
+  Future<String> generateJson({required String system, required String user, Future<void>? cancel});
+}
+
+class LlmCancelled implements Exception {
+  @override
+  String toString() => 'ยกเลิกแล้ว';
 }
 
 class LlmException implements Exception {

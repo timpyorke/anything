@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:http/http.dart' as http;
 
 import '../app/providers.dart';
 import 'ai_studio_provider.dart';
@@ -22,6 +23,21 @@ abstract class AiSettingsState with _$AiSettingsState {
 }
 
 final aiSettingsProvider = NotifierProvider<AiSettingsViewModel, AiSettingsState>(AiSettingsViewModel.new);
+
+final studioHttpClientProvider = Provider<http.Client>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return client;
+});
+
+/// รายชื่อโมเดลจาก AI Studio ตาม key ที่บันทึกไว้ (ว่าง = ยังไม่มี key) — ดึงใหม่เมื่อ key เปลี่ยน
+/// ปิด retry อัตโนมัติ: key ผิดลองซ้ำก็ไม่หาย ให้ผู้ใช้กดโหลดใหม่เอง
+final studioModelsProvider = FutureProvider.autoDispose<List<String>>(retry: (_, _) => null, (ref) async {
+  final client = ref.watch(studioHttpClientProvider);
+  final key = await ref.watch(secureStorageProvider).read(key: 'ai.studio.key');
+  if (key == null || key.isEmpty) return const [];
+  return AiStudioProvider.listModels(key, client: client);
+});
 
 /// การตั้งค่า AI — เก็บใน Keychain/Keystore (API key ไม่อยู่ในโค้ดและไม่ส่งขึ้น Supabase)
 class AiSettingsViewModel extends Notifier<AiSettingsState> {
@@ -61,6 +77,7 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
       await _storage.write(key: 'ai.studio.key', value: k);
     }
     state = state.copyWith(hasStudioKey: k.isNotEmpty);
+    ref.invalidate(studioModelsProvider);
   }
 
   /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด)

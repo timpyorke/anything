@@ -17,7 +17,7 @@ class FakeLlm implements LlmProvider {
   @override
   String get model => 'fake';
   @override
-  Future<String> generateJson({required String system, required String user}) async {
+  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) async {
     lastSystem = system;
     return reply;
   }
@@ -172,6 +172,21 @@ void main() {
     final rec = Recorder(state, clock: () => now);
     expect(rec.parse('{"actions":[]}', now).reply, isNotEmpty);
     expect(rec.parse('{"reply":" ","questions":["วันไหน"]}', now).reply, isNotEmpty);
+  });
+
+  test('prompt tells the model to act first and not ask what it can decide', () {
+    final prompt = Recorder(state, clock: () => now).systemPrompt(now);
+    expect(prompt, contains('ลงมือเสนอ action จากข้อมูลที่มีก่อน'));
+    expect(prompt, contains('ห้ามถามสิ่งที่ตัดสินใจเองได้'));
+    expect(prompt, contains('"questions": []'));
+  });
+
+  test('a follow-up message carries the earlier conversation', () {
+    final rec = Recorder(state, clock: () => now);
+    expect(rec.userPrompt('x', const []), 'ข้อความจากผู้ใช้:\nx');
+    final first = rec.parse('{"reply":"รับทราบ","questions":["วันไหน"],"actions":[]}', now);
+    final next = rec.userPrompt('22 ม.ค.', [(message: 'จะไปปักกิ่ง', result: first)]);
+    expect(next, allOf(contains('จะไปปักกิ่ง'), contains('รับทราบ'), contains('วันไหน'), contains('22 ม.ค.')));
   });
 
   test('recurring payment proposal', () async {

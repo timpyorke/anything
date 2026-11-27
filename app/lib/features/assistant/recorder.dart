@@ -41,6 +41,9 @@ class AiResult {
   final Object? raw;
 }
 
+/// ข้อความของผู้ใช้ 1 ครั้งกับสิ่งที่ AI ตอบ ([result] ว่าง = รอบนั้นเรียก AI ไม่สำเร็จ)
+typedef Exchange = ({String message, AiResult? result});
+
 class Recorder {
   Recorder(this.state, {DateTime Function()? clock}) : _clock = clock ?? today;
   final DiaryState state;
@@ -49,11 +52,33 @@ class Recorder {
   /// รหัสสั้น (R1, R2, …) แทน uuid ในพรอมต์ — ประหยัด token และ AI อ้าง id มั่วไม่ได้
   final Map<String, String> refs = {};
 
-  Future<AiResult> run(LlmProvider provider, String message) async {
+  Future<AiResult> run(LlmProvider provider, String message, {List<Exchange> history = const [], Future<void>? cancel}) async {
     final now = _clock();
     final system = systemPrompt(now);
-    final raw = await provider.generateJson(system: system, user: 'ข้อความจากผู้ใช้:\n$message');
+    final raw = await provider.generateJson(system: system, user: userPrompt(message, history), cancel: cancel);
     return parse(raw, now);
+  }
+
+  /// ข้อความที่ส่งให้ AI — ถ้าเป็นการตอบต่อ แนบบทสนทนาก่อนหน้าไปด้วยเพราะ AI จำเองไม่ได้
+  String userPrompt(String message, List<Exchange> history) {
+    if (history.isEmpty) return 'ข้อความจากผู้ใช้:\n$message';
+    final b = StringBuffer('บทสนทนาก่อนหน้า:\n');
+    for (final h in history) {
+      b.writeln('ผู้ใช้: ${h.message}');
+      final r = h.result;
+      if (r == null) continue;
+      b.writeln('ผู้ช่วย: ${r.reply}');
+      if (r.questions.isNotEmpty) b.writeln('ผู้ช่วยถาม: ${r.questions.join(' / ')}');
+      final offered = r.actions.where((a) => a.valid).map((a) => a.summary);
+      if (offered.isNotEmpty) b.writeln('ผู้ช่วยเสนอ (ยังไม่ได้บันทึก): ${offered.join(' / ')}');
+    }
+    b
+      ..writeln()
+      ..writeln('ข้อความล่าสุดจากผู้ใช้:')
+      ..writeln(message)
+      ..writeln()
+      ..write('ตอบข้อความล่าสุดโดยใช้บทสนทนาข้างบนประกอบ ห้ามถามซ้ำ; actions ต้องครบทุกอย่างที่ยังไม่ได้บันทึก เพราะชุดใหม่จะแทนชุดที่เสนอไว้');
+    return b.toString();
   }
 
   String systemPrompt(DateTime now) {
@@ -124,15 +149,19 @@ class Recorder {
 - ผู้ใช้บอกว่าทำสิ่งใน checklist แล้ว → type "check" กับรายการเดิม ห้ามสร้างรายการใหม่
 - แผนเปลี่ยน (เลื่อนวัน เปลี่ยนชื่อ) → type "update" กับรายการเดิม
 - แผนที่ต้องเตรียมตัว → ใส่ checklist ใน body เป็นบรรทัด "- [ ] ..."
+- วันที่ที่ไม่บอกปี: เรื่องที่วางแผนไว้ใช้ครั้งถัดไปนับจากวันนี้ เรื่องที่เกิดแล้วใช้ครั้งล่าสุด ("ปีหน้า" = ปีของวันนี้ + 1)
+- เรื่องที่มีอยู่แล้วในรายการ → อ้างรายการนั้น (update/check) ไม่สร้างซ้ำ; ไม่มีอะไรใหม่ก็ตอบว่ามีบันทึกแล้ว
 - เลือกหมวดเดิมที่ตรงความหมายก่อน; ไม่มีหมวดที่ตรง (หรือยังไม่มีหมวด) หรือผู้ใช้ขอหมวดใหม่ → type "new_category" แล้วใช้ key นั้นใน action ถัดไป ห้ามทิ้งเรื่องเพราะไม่มีหมวด
 - ตัวเลขที่ควรติดตามซ้ำแต่ไม่มี key → type "new_metric" แล้วใช้ key นั้นใน action ถัดไป; ตัวเลขครั้งเดียวให้เขียนใน body
 - ใช้ key ได้เฉพาะที่มีในรายการด้านบน หรือที่สร้างใน actions ชุดเดียวกัน
-- ห้ามแต่งข้อมูลที่ผู้ใช้ไม่ได้บอก; ถ้าขาดข้อมูลสำคัญ (วันที่ของเรื่องใหญ่ จำนวนเงิน) ให้ถามใน questions และไม่ต้องสร้าง action นั้น โดย reply บอกว่ารอข้อมูลอะไร
+- ลงมือเสนอ action จากข้อมูลที่มีก่อน ผู้ใช้ตรวจและแก้ได้ก่อนบันทึก
+- ห้ามถามสิ่งที่ตัดสินใจเองได้ (หมวด kind title จะบันทึกหรือไม่) และห้ามถามรายละเอียดเสริมที่ไม่จำเป็น (งบประมาณ ความสนใจ)
+- ห้ามแต่งข้อมูลที่ผู้ใช้ไม่ได้บอก; ถามได้เฉพาะเมื่อขาดข้อมูลจนสร้าง action ไม่ได้ (เช่น วันที่ของนัดหมาย จำนวนเงินของค่างวด) ถามข้อเดียวใน questions และ reply บอกว่ารอข้อมูลอะไร
 - title สั้น กระชับ เป็นภาษาไทย; reply สั้น (1–2 ประโยค): สรุปว่าจะบันทึกอะไร หรือตอบสิ่งที่ถูกถาม''';
 
   static const _schema = '''
 ## รูปแบบคำตอบ (JSON object เท่านั้น ไม่มีข้อความอื่น)
-{"reply": "...", "questions": ["..."], "actions": [
+{"reply": "...", "questions": [], "actions": [
   {"type": "new_category", "key": "pet", "label": "สัตว์เลี้ยง", "description": "เรื่องของสัตว์เลี้ยง: อาหาร หาหมอ วัคซีน"},
   {"type": "create", "kind": "event", "date": "YYYY-MM-DD", "end_date": null, "category": "travel", "title": "...", "body": "...", "metrics": [{"key": "weight", "value": 74.5}], "every": null, "times": null},
   {"type": "create", "kind": "daily", "date": "YYYY-MM-DD", "category": "daily", "title": "กินข้าวเย็น", "body": "กินข้าวเย็น"},
@@ -141,6 +170,7 @@ class Recorder {
   {"type": "new_metric", "key": "water", "label": "ดื่มน้ำ", "unit": "ลิตร"}
 ]}
 update ใส่เฉพาะฟิลด์ที่เปลี่ยน
+questions ปกติเป็น [] ว่าง
 actions ว่างได้เฉพาะเมื่อเป็นคำทักทาย คำถาม หรือต้องถามข้อมูลเพิ่มก่อน — ถ้า actions ว่าง ห้ามบอกใน reply ว่าบันทึกแล้วหรือจะบันทึก''';
 
   /// แปลงคำตอบของ AI → AiResult (ตรวจทุก action ด้วยกฎเดียวกับฐานข้อมูล)

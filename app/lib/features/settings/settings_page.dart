@@ -16,22 +16,13 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  late final TextEditingController _model;
   final _key = TextEditingController();
   bool _showKey = false;
 
   SettingsViewModel get _vm => ref.read(settingsViewModelProvider.notifier);
 
   @override
-  void initState() {
-    super.initState();
-    // สร้างตั้งแต่ตอนนี้: ถ้าสร้างแบบ lazy แล้วหน้าไม่เคยแสดงช่องโมเดล จะไปเรียก ref ใน dispose
-    _model = TextEditingController(text: ref.read(aiSettingsProvider).studioModel);
-  }
-
-  @override
   void dispose() {
-    _model.dispose();
     _key.dispose();
     super.dispose();
   }
@@ -120,18 +111,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     if (ai.hasStudioKey) TextButton(onPressed: () => aiVm.setStudioKey(null), child: const Text('ลบ key')),
                   ]),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: TextField(
-                    controller: _model,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      labelText: 'โมเดล',
-                      helperText: 'เช่น gemini-2.5-flash หรือ gemma-3-27b-it',
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: aiVm.setStudioModel,
-                  ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 16, 4, 0),
+                  child: _StudioModelField(),
                 ),
               ],
               const Divider(height: 32),
@@ -182,6 +164,58 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         },
       ),
     );
+  }
+}
+
+/// เลือกโมเดล AI Studio จากรายชื่อที่ดึงมาอัตโนมัติ
+class _StudioModelField extends ConsumerWidget {
+  const _StudioModelField();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(aiSettingsProvider.select((s) => s.studioModel));
+    final hasKey = ref.watch(aiSettingsProvider.select((s) => s.hasStudioKey));
+    final models = ref.watch(studioModelsProvider);
+    final list = models.value ?? const <String>[];
+    final error = models.isLoading ? null : models.error;
+    // โมเดลที่เลือกไว้ต้องอยู่ในรายการเสมอ แม้ยังโหลดไม่เสร็จหรือ AI Studio ไม่มีแล้ว
+    final items = [if (!list.contains(selected)) selected, ...list];
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+        child: DropdownButtonFormField<String>(
+          key: ValueKey(selected),
+          initialValue: selected,
+          isExpanded: true,
+          menuMaxHeight: 400,
+          decoration: InputDecoration(
+            labelText: 'โมเดล',
+            border: const OutlineInputBorder(),
+            errorText: error == null ? null : 'โหลดรายชื่อโมเดลไม่ได้ — $error',
+            errorMaxLines: 3,
+            helperText: !hasKey
+                ? 'บันทึก API key ก่อน เพื่อโหลดรายชื่อโมเดล'
+                : models.isLoading
+                    ? 'กำลังโหลดรายชื่อโมเดล…'
+                    : list.contains(selected)
+                        ? '${list.length} โมเดลจาก AI Studio'
+                        : 'โมเดลที่เลือกไว้ไม่อยู่ในรายชื่อ — เลือกใหม่',
+            helperMaxLines: 2,
+          ),
+          items: [for (final id in items) DropdownMenuItem(value: id, child: Text(id, overflow: TextOverflow.ellipsis))],
+          onChanged: list.isEmpty ? null : (id) => id == null ? null : ref.read(aiSettingsProvider.notifier).setStudioModel(id),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: IconButton(
+          tooltip: 'โหลดรายชื่อโมเดลใหม่',
+          onPressed: !hasKey || models.isLoading ? null : () => ref.invalidate(studioModelsProvider),
+          icon: models.isLoading
+              ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.refresh),
+        ),
+      ),
+    ]);
   }
 }
 

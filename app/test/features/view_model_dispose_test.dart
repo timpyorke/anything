@@ -30,13 +30,19 @@ class _Repo extends FakeDiaryRepository {
 }
 
 class _Llm implements LlmProvider {
-  final reply = Completer<String>();
+  var reply = Completer<String>();
+  String? lastUser;
+  var cancelled = false;
   @override
   AiProviderKind get kind => AiProviderKind.onDevice;
   @override
   String get model => 'fake';
   @override
-  Future<String> generateJson({required String system, required String user}) => reply.future;
+  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) {
+    lastUser = user;
+    cancel?.then((_) => cancelled = true);
+    return reply.future;
+  }
 }
 
 class _Ai extends AiSettingsViewModel {
@@ -74,14 +80,30 @@ void main() {
 
   const newEntry = '{"actions":[{"type":"create","kind":"event","date":"2026-12-01","category":"health","title":"หาหมอ"}]}';
 
-  test('turn: sheet closed while the AI is still thinking', () async {
+  test('turn: sheet closed while the AI is still thinking cancels the request', () async {
     final sub = c.listen(turnViewModelProvider('x'), (_, _) {});
     await _settle();
     sub.close();
     await _settle();
-    llm.reply.complete('{"actions":[]}');
+    expect(llm.cancelled, isTrue);
+    llm.reply.complete('{"actions":[]}'); // คำตอบที่มาช้าถูกทิ้ง
     await _settle();
-    expect(repo.logs, ['rejected']);
+    expect(repo.logs, isEmpty);
+  });
+
+  test('turn: answering a question replaces the proposal and keeps the conversation', () async {
+    final sub = c.listen(turnViewModelProvider('นัดหมอ'), (_, _) {});
+    addTearDown(sub.close);
+    llm.reply.complete('{"reply":"วันไหนดี","questions":["นัดวันไหน"],"actions":[]}');
+    await _settle();
+    llm.reply = Completer()..complete(newEntry);
+    await c.read(turnViewModelProvider('นัดหมอ').notifier).answer(' 1 ธ.ค. ');
+    final turn = sub.read();
+    expect(turn.text, '1 ธ.ค.');
+    expect(turn.history.single.message, 'นัดหมอ');
+    expect(turn.history.single.result!.questions, ['นัดวันไหน']);
+    expect(turn.result!.actions.single.valid, isTrue);
+    expect(llm.lastUser, allOf(contains('นัดหมอ'), contains('นัดวันไหน'), contains('1 ธ.ค.')));
   });
 
   test('turn: sheet closed while saving', () async {

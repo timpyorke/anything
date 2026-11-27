@@ -86,10 +86,15 @@ class OnDeviceProvider implements LlmProvider {
       });
 
   @override
-  Future<String> generateJson({required String system, required String user}) =>
-      _exclusive(() => _generateJson(system, user));
+  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) {
+    // จำไว้ตั้งแต่ตอนเข้าคิว: ถูกยกเลิกระหว่างรอคิวหรือโหลดโมเดลก็ไม่ต้องเริ่มคิด
+    var cancelled = false;
+    cancel?.then((_) => cancelled = true);
+    return _exclusive(() => _generateJson(system, user, cancel, () => cancelled));
+  }
 
-  Future<String> _generateJson(String system, String user) async {
+  Future<String> _generateJson(String system, String user, Future<void>? cancel, bool Function() cancelled) async {
+    if (cancelled()) throw LlmCancelled();
     await _requireInstalled();
     final model = await _model();
     final format = ResponseFormat.jsonObject();
@@ -100,9 +105,16 @@ class OnDeviceProvider implements LlmProvider {
       temperature: _temperature,
       responseFormat: enforce ? format : null,
     );
+    var done = false;
     try {
       await session.addQueryChunk(Message(text: user, isUser: true));
-      return await session.getResponse();
+      if (cancelled()) throw LlmCancelled();
+      final response = session.getResponse();
+      // หยุดการคิดในเครื่องจริงๆ คิวจะได้ว่างให้คำขอถัดไป
+      cancel?.then((_) async {
+        if (!done) await session.stopGeneration();
+      }).ignore();
+      return await response;
     } on ContextLimitException {
       throw LlmException('ข้อความยาวเกินกว่าที่โมเดลบนเครื่องรับได้ — แบ่งเป็นหลายครั้ง');
     } on IncompleteStructuredOutputException catch (e) {
@@ -110,6 +122,7 @@ class OnDeviceProvider implements LlmProvider {
     } on NonConformingStructuredOutputException catch (e) {
       return e.text;
     } finally {
+      done = true;
       await session.close();
     }
   }

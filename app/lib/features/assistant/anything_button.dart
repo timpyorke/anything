@@ -69,7 +69,8 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
       context: nav.context,
       isScrollControlled: true,
-      showDragHandle: true,
+      // ปัดลงปิด sheet ได้โดยข้าม PopScope จึงปิดการลากไว้ (กันปิดพลาดตอน AI คิดอยู่)
+      enableDrag: false,
       builder: (_) => _ResultSheet(text: text, messenger: messenger),
     );
   }
@@ -273,12 +274,22 @@ class _ResultSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.75),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          child: TurnView(text: text, onApply: () => _apply(context, ref)),
+    final thinking = ref.watch(turnViewModelProvider(text).select((t) => t.thinking));
+    // ระหว่าง AI คิด แตะข้างนอก/กดย้อนกลับไม่ปิด ต้องกด "ยกเลิก"
+    return PopScope(
+      canPop: !thinking,
+      // ดัน sheet ขึ้นเหนือคีย์บอร์ดตอนพิมพ์ตอบ
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+        child: SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.75),
+            child: SingleChildScrollView(
+              reverse: true, // เห็นข้อความล่าสุดและช่องตอบเสมอ
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+              child: TurnView(text: text, onApply: () => _apply(context, ref)),
+            ),
+          ),
         ),
       ),
     );

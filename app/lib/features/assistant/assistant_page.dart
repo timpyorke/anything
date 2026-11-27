@@ -67,20 +67,22 @@ class TurnView extends ConsumerWidget {
     final r = turn.result;
     final selectable = r?.actions.where((a) => a.valid).toList() ?? const <ProposedAction>[];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Align(
-        alignment: Alignment.centerRight,
-        child: Container(
-          margin: const EdgeInsets.only(left: 48, bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(18)),
-          child: Text(text, style: TextStyle(color: scheme.onPrimaryContainer)),
-        ),
-      ),
-      if (turn.busy && r == null)
-        const Padding(padding: EdgeInsets.all(12), child: Row(children: [
-          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-          SizedBox(width: 10),
-          Text('AI กำลังคิด…'),
+      for (final h in turn.history) ...[
+        _UserBubble(h.message),
+        if (h.result != null)
+          Card(
+            margin: const EdgeInsets.only(right: 24, bottom: 8),
+            child: Padding(padding: const EdgeInsets.all(12), child: _Reply(h.result!)),
+          ),
+      ],
+      _UserBubble(turn.text),
+      if (turn.thinking)
+        Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('AI กำลังคิด…')),
+          // ปิด sheet = provider ถูกทิ้ง ซึ่งยกเลิกคำขอ AI
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),
         ])),
       if (turn.error != null)
         Card(
@@ -93,16 +95,7 @@ class TurnView extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (r.reply.isNotEmpty) Text(r.reply),
-              for (final q in r.questions)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(Icons.help_outline, size: 18, color: scheme.tertiary),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(q, style: TextStyle(color: scheme.tertiary))),
-                  ]),
-                ),
+              _Reply(r),
               // บอกตรงๆ เพราะโมเดลอาจตอบเหมือนบันทึกแล้วทั้งที่ไม่ได้เสนออะไร
               if (r.actions.isEmpty && r.questions.isEmpty)
                 Padding(
@@ -131,8 +124,89 @@ class TurnView extends ConsumerWidget {
             ]),
           ),
         ),
+      if (!turn.busy && !turn.applied)
+        _AnswerBox(hint: r?.questions.isNotEmpty ?? false ? 'ตอบคำถาม…' : 'บอกเพิ่มหรือแก้…', onSend: vm.answer),
     ]);
   }
+}
+
+class _UserBubble extends StatelessWidget {
+  const _UserBubble(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.only(left: 48, bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(18)),
+        child: Text(text, style: TextStyle(color: scheme.onPrimaryContainer)),
+      ),
+    );
+  }
+}
+
+/// คำตอบและคำถามของ AI
+class _Reply extends StatelessWidget {
+  const _Reply(this.result);
+  final AiResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (result.reply.isNotEmpty) Text(result.reply),
+      for (final q in result.questions)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.help_outline, size: 18, color: scheme.tertiary),
+            const SizedBox(width: 6),
+            Expanded(child: Text(q, style: TextStyle(color: scheme.tertiary))),
+          ]),
+        ),
+    ]);
+  }
+}
+
+/// ช่องตอบ AI ต่อในเรื่องเดิม
+class _AnswerBox extends StatefulWidget {
+  const _AnswerBox({required this.hint, required this.onSend});
+  final String hint;
+  final ValueChanged<String> onSend;
+
+  @override
+  State<_AnswerBox> createState() => _AnswerBoxState();
+}
+
+class _AnswerBoxState extends State<_AnswerBox> {
+  final _text = TextEditingController();
+
+  void _send() {
+    if (_text.text.trim().isNotEmpty) widget.onSend(_text.text);
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => TextField(
+        controller: _text,
+        minLines: 1,
+        maxLines: 4,
+        textInputAction: TextInputAction.send,
+        onSubmitted: (_) => _send(),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          suffixIcon: IconButton(icon: const Icon(Icons.arrow_upward), tooltip: 'ส่ง', onPressed: _send),
+        ),
+      );
 }
 
 class _ActionTile extends ConsumerWidget {
