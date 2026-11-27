@@ -5,55 +5,113 @@ import 'package:http/http.dart' as http;
 
 import '../app/providers.dart';
 import 'ai_studio_provider.dart';
+import 'anthropic_provider.dart';
 import 'llm_provider.dart';
 import 'on_device_provider.dart';
+import 'openai_provider.dart';
 
 part 'ai_settings.freezed.dart';
 
-const defaultStudioModel = 'gemini-2.5-flash';
+/// API key เก็บแยกตามบัญชี คนที่ล็อกอินต่อบนเครื่องเดียวกันจะใช้ key ของคนก่อนไม่ได้
+String aiKeyName(AiProviderKind kind, String userId) => 'ai.${kind.slot}.key.$userId';
+String _modelName(AiProviderKind kind) => 'ai.${kind.slot}.model';
+
+/// ชื่อเดิมของ key AI Studio ที่ใช้ร่วมกันทั้งเครื่อง
+const legacyStudioKeyName = 'ai.studio.key';
 
 @freezed
 abstract class AiSettingsState with _$AiSettingsState {
+  const AiSettingsState._();
+
   const factory AiSettingsState({
     @Default(AiProviderKind.aiStudio) AiProviderKind provider,
-    @Default(defaultStudioModel) String studioModel,
-    @Default(false) bool hasStudioKey,
+    /// โมเดลที่เลือกไว้ของแต่ละบริการ (ไม่มี = ใช้ค่าเริ่มต้น)
+    @Default(<AiProviderKind, String>{}) Map<AiProviderKind, String> models,
+    /// บริการที่บัญชีนี้บันทึก API key ไว้แล้ว
+    @Default(<AiProviderKind>{}) Set<AiProviderKind> savedKeys,
     @Default(false) bool loaded,
   }) = _AiSettingsState;
+
+  String modelFor(AiProviderKind kind) => models[kind] ?? kind.defaultModel;
+
+  /// บริการที่เลือกอยู่ต้องใช้ key แต่ยังไม่ได้ใส่
+  bool get missingKey => provider.isCloud && !savedKeys.contains(provider);
 }
 
 final aiSettingsProvider = NotifierProvider<AiSettingsViewModel, AiSettingsState>(AiSettingsViewModel.new);
 
-final studioHttpClientProvider = Provider<http.Client>((ref) {
+final aiHttpClientProvider = Provider<http.Client>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
   return client;
 });
 
-/// รายชื่อโมเดลจาก AI Studio ตาม key ที่บันทึกไว้ (ว่าง = ยังไม่มี key) — ดึงใหม่เมื่อ key เปลี่ยน
+/// รายชื่อโมเดลของบริการ ตาม key ที่บันทึกไว้ (ว่าง = ยังไม่มี key) — ดึงใหม่เมื่อ key เปลี่ยน
 /// ปิด retry อัตโนมัติ: key ผิดลองซ้ำก็ไม่หาย ให้ผู้ใช้กดโหลดใหม่เอง
-final studioModelsProvider = FutureProvider.autoDispose<List<String>>(retry: (_, _) => null, (ref) async {
-  final client = ref.watch(studioHttpClientProvider);
-  final key = await ref.watch(secureStorageProvider).read(key: 'ai.studio.key');
+final aiModelsProvider =
+    FutureProvider.autoDispose.family<List<String>, AiProviderKind>(retry: (_, _) => null, (ref, kind) async {
+  final client = ref.watch(aiHttpClientProvider);
+  final storage = ref.watch(secureStorageProvider);
+  final userId = ref.watch(currentUserIdProvider);
+  final key = userId == null ? null : await storage.read(key: aiKeyName(kind, userId));
   if (key == null || key.isEmpty) return const [];
-  return AiStudioProvider.listModels(key, client: client);
+  return switch (kind) {
+    AiProviderKind.aiStudio => AiStudioProvider.listModels(key, client: client),
+    AiProviderKind.anthropic => AnthropicProvider.listModels(key, client: client),
+    AiProviderKind.openAi || AiProviderKind.openRouter => OpenAiProvider.listModels(kind, key, client: client),
+    AiProviderKind.onDevice => const [],
+  };
 });
 
 /// การตั้งค่า AI — เก็บใน Keychain/Keystore (API key ไม่อยู่ในโค้ดและไม่ส่งขึ้น Supabase)
 class AiSettingsViewModel extends Notifier<AiSettingsState> {
   @override
-  AiSettingsState build() => const AiSettingsState();
+  AiSettingsState build() {
+    // เปลี่ยนบัญชี → สถานะ key ต้องเป็นของบัญชีใหม่
+    ref.listen(currentUserIdProvider, (_, _) {
+      state = state.copyWith(savedKeys: {});
+      load();
+    });
+    return const AiSettingsState();
+  }
 
   FlutterSecureStorage get _storage => ref.read(secureStorageProvider);
 
+  Future<String?> _readKey(AiProviderKind kind) async {
+    final userId = ref.read(currentUserIdProvider);
+    return userId == null ? null : _storage.read(key: aiKeyName(kind, userId));
+  }
+
+  /// ย้าย key ชื่อเดิมให้บัญชีที่ล็อกอินค้างอยู่ ถ้าไม่มีใครล็อกอินก็ทิ้ง
+  /// (เรียกครั้งแรกตอนเปิดแอป บัญชีที่ล็อกอินทีหลังจึงรับ key นี้ไปไม่ได้)
+  Future<void> _moveLegacyKey() async {
+    final legacy = await _storage.read(key: legacyStudioKeyName);
+    if (legacy == null) return;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) {
+      final name = aiKeyName(AiProviderKind.aiStudio, userId);
+      if (await _storage.read(key: name) == null) await _storage.write(key: name, value: legacy);
+    }
+    await _storage.delete(key: legacyStudioKeyName);
+  }
+
   Future<void> load() async {
+    await _moveLegacyKey();
+    final userId = ref.read(currentUserIdProvider);
     final p = await _storage.read(key: 'ai.provider');
-    final model = await _storage.read(key: 'ai.studio.model');
-    final key = await _storage.read(key: 'ai.studio.key');
+    final models = <AiProviderKind, String>{};
+    final savedKeys = <AiProviderKind>{};
+    for (final kind in AiProviderKind.cloud) {
+      final model = await _storage.read(key: _modelName(kind));
+      if (model != null) models[kind] = model;
+      if ((await _readKey(kind))?.isNotEmpty ?? false) savedKeys.add(kind);
+    }
+    // เปลี่ยนบัญชีระหว่างอ่าน → ทิ้งผลนี้ รอบของบัญชีใหม่จะตั้งค่าเอง
+    if (userId != ref.read(currentUserIdProvider)) return;
     state = AiSettingsState(
       provider: AiProviderKind.values.firstWhere((k) => k.id == p, orElse: () => AiProviderKind.aiStudio),
-      studioModel: model ?? defaultStudioModel,
-      hasStudioKey: key?.isNotEmpty ?? false,
+      models: models,
+      savedKeys: savedKeys,
       loaded: true,
     );
   }
@@ -63,30 +121,37 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
     await _storage.write(key: 'ai.provider', value: k.id);
   }
 
-  Future<void> setStudioModel(String m) async {
-    final model = m.trim().isEmpty ? defaultStudioModel : m.trim();
-    state = state.copyWith(studioModel: model);
-    await _storage.write(key: 'ai.studio.model', value: model);
+  Future<void> setModel(AiProviderKind kind, String m) async {
+    final model = m.trim().isEmpty ? kind.defaultModel : m.trim();
+    state = state.copyWith(models: {...state.models, kind: model});
+    await _storage.write(key: _modelName(kind), value: model);
   }
 
-  Future<void> setStudioKey(String? key) async {
+  Future<void> setKey(AiProviderKind kind, String? key) async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null || !kind.isCloud) return;
     final k = key?.trim() ?? '';
     if (k.isEmpty) {
-      await _storage.delete(key: 'ai.studio.key');
+      await _storage.delete(key: aiKeyName(kind, userId));
     } else {
-      await _storage.write(key: 'ai.studio.key', value: k);
+      await _storage.write(key: aiKeyName(kind, userId), value: k);
     }
-    state = state.copyWith(hasStudioKey: k.isNotEmpty);
-    ref.invalidate(studioModelsProvider);
+    state = state.copyWith(savedKeys: k.isEmpty ? ({...state.savedKeys}..remove(kind)) : {...state.savedKeys, kind});
+    ref.invalidate(aiModelsProvider(kind));
   }
 
   /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด)
   Future<LlmProvider?> resolveProvider() async {
-    if (state.provider == AiProviderKind.aiStudio) {
-      final key = await _storage.read(key: 'ai.studio.key');
-      if (key == null || key.isEmpty) return null;
-      return AiStudioProvider(apiKey: key, model: state.studioModel);
-    }
-    return await OnDeviceProvider.isInstalled() ? OnDeviceProvider() : null;
+    final kind = state.provider;
+    if (!kind.isCloud) return await OnDeviceProvider.isInstalled() ? OnDeviceProvider() : null;
+    final key = await _readKey(kind);
+    if (key == null || key.isEmpty) return null;
+    final model = state.modelFor(kind);
+    return switch (kind) {
+      AiProviderKind.aiStudio => AiStudioProvider(apiKey: key, model: model),
+      AiProviderKind.anthropic => AnthropicProvider(apiKey: key, model: model),
+      AiProviderKind.openAi || AiProviderKind.openRouter => OpenAiProvider(kind: kind, apiKey: key, model: model),
+      AiProviderKind.onDevice => null,
+    };
   }
 }

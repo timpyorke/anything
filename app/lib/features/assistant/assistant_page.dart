@@ -5,6 +5,8 @@ import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
 import '../entry_editor/entry_editor_page.dart';
+import '../settings/ai_settings_page.dart';
+import '../settings/local_model_page.dart';
 import '../settings/settings_page.dart';
 import 'recorder.dart';
 import 'turn_view_model.dart';
@@ -21,9 +23,10 @@ Future<LlmProvider?> ensureLlmProvider(NavigatorState nav, WidgetRef ref) async 
   await _offerSettings(
     nav,
     title: 'ยังไม่ได้ตั้งค่า AI',
-    message: kind == AiProviderKind.aiStudio
-        ? 'ใส่ API key ของ Google AI Studio ในหน้าตั้งค่าก่อน'
+    message: kind.isCloud
+        ? 'ใส่ API key ของ ${kind.label} ในหน้าตั้งค่าก่อน'
         : 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน',
+    page: kind.isCloud ? const AiSettingsPage() : const LocalModelPage(),
   );
   return null;
 }
@@ -34,9 +37,10 @@ Future<void> offerVoiceModelSetup(NavigatorState nav) => _offerSettings(
       title: 'ยังไม่มีโมเดลฟังเสียง',
       message: 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน '
           'เสียงจะถูกถอดเป็นข้อความในเครื่อง',
+      page: const LocalModelPage(),
     );
 
-Future<void> _offerSettings(NavigatorState nav, {required String title, required String message}) async {
+Future<void> _offerSettings(NavigatorState nav, {required String title, required String message, required Widget page}) async {
   final setUp = await showDialog<bool>(
     // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
     context: nav.context,
@@ -50,7 +54,9 @@ Future<void> _offerSettings(NavigatorState nav, {required String title, required
     ),
   );
   if (setUp == true) {
-    await nav.push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+    // ไปหน้าย่อยที่ต้องตั้งค่าเลย กดกลับแล้วเจอหน้าตั้งค่า
+    nav.push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+    await nav.push(MaterialPageRoute<void>(builder: (_) => page));
   }
 }
 

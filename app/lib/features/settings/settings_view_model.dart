@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../ai/ai_settings.dart';
+import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
 import '../diary/diary_view_model.dart';
 
@@ -61,9 +62,9 @@ class SettingsViewModel extends Notifier<SettingsState> {
     await checkGemma();
   }
 
-  Future<void> saveKey(String key) async {
+  Future<void> saveKey(AiProviderKind kind, String key) async {
     state = state.copyWith(notice: null);
-    await ref.read(aiSettingsProvider.notifier).setStudioKey(key);
+    await ref.read(aiSettingsProvider.notifier).setKey(kind, key);
     if (!ref.mounted) return;
     state = state.copyWith(notice: 'บันทึก API key แล้ว (เก็บในเครื่องเท่านั้น)');
   }

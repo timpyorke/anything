@@ -27,6 +27,13 @@ final currentUserIdProvider = Provider<String?>((ref) {
   return ref.watch(supabaseClientProvider).auth.currentSession?.user.id;
 });
 
+final currentUserEmailProvider = Provider<String?>((ref) {
+  ref.watch(authChangesProvider);
+  return ref.watch(supabaseClientProvider).auth.currentUser?.email;
+});
+
+final signOutProvider = Provider<Future<void> Function()>((ref) => ref.watch(supabaseClientProvider).auth.signOut);
+
 final voiceRecorderProvider = Provider<VoiceRecorder>((ref) {
   final recorder = MicRecorder();
   ref.onDispose(recorder.dispose);

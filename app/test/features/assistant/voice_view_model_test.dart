@@ -70,6 +70,7 @@ void main() {
     stt = _Transcriber();
     c = ProviderContainer(overrides: [
       aiSettingsProvider.overrideWith(_Ai.new),
+      currentUserIdProvider.overrideWithValue('user'),
       voiceRecorderProvider.overrideWithValue(mic),
       transcriberProvider.overrideWithValue(stt),
     ]);

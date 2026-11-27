@@ -3,229 +3,99 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ai/ai_settings.dart';
-import '../../ai/llm_provider.dart';
-import '../../ai/on_device_provider.dart';
 import '../../app/providers.dart';
+import 'ai_settings_page.dart';
+import 'local_model_page.dart';
+import 'settings_header.dart';
 import 'settings_view_model.dart';
 
-class SettingsPage extends ConsumerStatefulWidget {
+class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
-  @override
-  ConsumerState<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends ConsumerState<SettingsPage> {
-  final _key = TextEditingController();
-  bool _showKey = false;
-
-  SettingsViewModel get _vm => ref.read(settingsViewModelProvider.notifier);
-
-  @override
-  void dispose() {
-    _key.dispose();
-    super.dispose();
+  Future<void> _import(WidgetRef ref) async {
+    final vm = ref.read(settingsViewModelProvider.notifier);
+    final picked = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
+    if (picked == null) return;
+    await vm.importFile(await picked.readAsBytes());
   }
 
-  Future<void> _downloadGemma() async {
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final nav = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final signOut = ref.read(signOutProvider);
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('ดาวน์โหลด Gemma 4 E2B?'),
-        content: const Text('ไฟล์ขนาด ${OnDeviceProvider.sizeLabel} ควรใช้ Wi-Fi และมีพื้นที่ว่างพอ\n'
-            'หลังดาวน์โหลดแล้ว AI จะทำงานในเครื่องได้โดยไม่ต้องใช้เน็ต'),
+        title: const Text('ออกจากระบบ?'),
+        content: const Text('ต้องเข้าสู่ระบบใหม่เพื่อดูบันทึก'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ดาวน์โหลด')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ออกจากระบบ')),
         ],
       ),
     );
-    if (ok == true) await _vm.downloadGemma();
-  }
-
-  void _saveKey() {
-    final key = _key.text;
-    _key.clear();
-    FocusScope.of(context).unfocus();
-    _vm.saveKey(key);
-  }
-
-  Future<void> _import() async {
-    final picked = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
-    if (picked == null) return;
-    await _vm.importFile(await picked.readAsBytes());
+    if (ok != true) return;
+    try {
+      await signOut();
+      nav.popUntil((r) => r.isFirst);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('ออกจากระบบไม่สำเร็จ: $e')));
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // หน้าย่อยเปิดทับหน้านี้เสมอ จึงแสดงข้อความแจ้งที่นี่ที่เดียว (snackbar ขึ้นบนหน้าที่เห็นอยู่)
     ref.listen(settingsViewModelProvider.select((s) => s.notice), (_, notice) {
       if (notice != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
     });
     final scheme = Theme.of(context).colorScheme;
-    final user = ref.watch(supabaseClientProvider).auth.currentUser;
+    final email = ref.watch(currentUserEmailProvider) ?? '-';
     final ai = ref.watch(aiSettingsProvider);
-    final aiVm = ref.read(aiSettingsProvider.notifier);
     final st = ref.watch(settingsViewModelProvider);
+    void push(Widget page) => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
     return Scaffold(
       appBar: AppBar(title: const Text('ตั้งค่า')),
-      body: Builder(
-        builder: (context) {
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 32),
-            children: [
-              const _Header('AI ที่ใช้บันทึก'),
-              RadioGroup<AiProviderKind>(
-                groupValue: ai.provider,
-                onChanged: (v) => v == null ? null : aiVm.setProvider(v),
-                child: Column(children: [
-                  for (final k in AiProviderKind.values)
-                    RadioListTile<AiProviderKind>(value: k, title: Text(k.label), subtitle: Text(k.description)),
-                ]),
-              ),
-              if (ai.provider == AiProviderKind.aiStudio) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: TextField(
-                    controller: _key,
-                    obscureText: !_showKey,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    decoration: InputDecoration(
-                      labelText: ai.hasStudioKey ? 'API key (ตั้งไว้แล้ว — ใส่ใหม่เพื่อเปลี่ยน)' : 'API key ของ Google AI Studio',
-                      helperText: 'สร้างได้ที่ aistudio.google.com/apikey · เก็บใน Keychain/Keystore ของเครื่อง',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        tooltip: _showKey ? 'ซ่อน' : 'แสดง',
-                        icon: Icon(_showKey ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _showKey = !_showKey),
-                      ),
-                    ),
-                    onSubmitted: (_) => _saveKey(),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Row(children: [
-                    FilledButton(onPressed: _saveKey, child: const Text('บันทึก key')),
-                    const SizedBox(width: 8),
-                    if (ai.hasStudioKey) TextButton(onPressed: () => aiVm.setStudioKey(null), child: const Text('ลบ key')),
-                  ]),
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 16, 4, 0),
-                  child: _StudioModelField(),
-                ),
-              ],
-              const Divider(height: 32),
-              const _Header('โมเดลในเครื่อง (ใช้ฟังเสียง)'),
-              ListTile(
-                leading: const Icon(Icons.memory),
-                title: const Text('Gemma 4 E2B (${OnDeviceProvider.sizeLabel})'),
-                subtitle: Text(st.gemmaError ??
-                    (st.progress != null
-                        ? 'กำลังดาวน์โหลด ${st.progress}%'
-                        : st.gemmaInstalled == null
-                            ? 'กำลังตรวจสอบ…'
-                            : st.gemmaInstalled!
-                                ? 'พร้อมใช้ — ทำงานในเครื่อง ไม่ต้องใช้เน็ต'
-                                : 'ยังไม่ได้ดาวน์โหลด'),
-                    style: st.gemmaError == null ? null : TextStyle(color: scheme.error)),
-                trailing: st.progress != null
-                    ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(value: st.progress! / 100, strokeWidth: 3))
-                    : st.gemmaInstalled == true
-                        ? TextButton(onPressed: _vm.removeGemma, child: const Text('ลบ'))
-                        : FilledButton(onPressed: st.gemmaInstalled == null ? null : _downloadGemma, child: const Text('ดาวน์โหลด')),
-              ),
-              const Divider(height: 32),
-              const _Header('ข้อมูล'),
-              ListTile(
-                leading: const Icon(Icons.file_upload_outlined),
-                title: const Text('นำเข้าจากระบบเดิม'),
-                subtitle: const Text('ไฟล์ JSON ที่ export จากระบบเดิม · นำเข้าซ้ำได้ ไม่สร้างรายการซ้ำ'),
-                trailing: st.importing ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)) : null,
-                onTap: st.importing ? null : _import,
-              ),
-              const Divider(height: 32),
-              const _Header('บัญชี'),
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: Text(user?.email ?? '-'),
-                trailing: TextButton(
-                  onPressed: () async {
-                    final nav = Navigator.of(context);
-                    await ref.read(supabaseClientProvider).auth.signOut();
-                    nav.popUntil((r) => r.isFirst);
-                  },
-                  child: const Text('ออกจากระบบ'),
-                ),
-              ),
-            ],
-          );
-        },
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 32),
+        children: [
+          ListTile(
+            leading: CircleAvatar(child: Text(email.characters.first.toUpperCase())),
+            title: Text(email),
+          ),
+          const Divider(height: 32),
+          const SettingsHeader('AI'),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('AI ที่ใช้บันทึก'),
+            subtitle: Text('${ai.provider.label}${ai.missingKey ? ' · ยังไม่ได้ใส่ API key' : ''}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => push(const AiSettingsPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.memory),
+            title: const Text('โมเดลในเครื่อง'),
+            subtitle: Text(gemmaStatus(st), style: st.gemmaError == null ? null : TextStyle(color: scheme.error)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => push(const LocalModelPage()),
+          ),
+          const Divider(height: 32),
+          const SettingsHeader('ข้อมูล'),
+          ListTile(
+            leading: const Icon(Icons.file_upload_outlined),
+            title: const Text('นำเข้าจากระบบเดิม'),
+            subtitle: const Text('ไฟล์ JSON ที่ export จากระบบเดิม · นำเข้าซ้ำได้ ไม่สร้างรายการซ้ำ'),
+            trailing: st.importing ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)) : null,
+            onTap: st.importing ? null : () => _import(ref),
+          ),
+          const Divider(height: 32),
+          ListTile(
+            leading: Icon(Icons.logout, color: scheme.error),
+            title: Text('ออกจากระบบ', style: TextStyle(color: scheme.error)),
+            onTap: () => _signOut(context, ref),
+          ),
+        ],
       ),
     );
   }
-}
-
-/// เลือกโมเดล AI Studio จากรายชื่อที่ดึงมาอัตโนมัติ
-class _StudioModelField extends ConsumerWidget {
-  const _StudioModelField();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(aiSettingsProvider.select((s) => s.studioModel));
-    final hasKey = ref.watch(aiSettingsProvider.select((s) => s.hasStudioKey));
-    final models = ref.watch(studioModelsProvider);
-    final list = models.value ?? const <String>[];
-    final error = models.isLoading ? null : models.error;
-    // โมเดลที่เลือกไว้ต้องอยู่ในรายการเสมอ แม้ยังโหลดไม่เสร็จหรือ AI Studio ไม่มีแล้ว
-    final items = [if (!list.contains(selected)) selected, ...list];
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Expanded(
-        child: DropdownButtonFormField<String>(
-          key: ValueKey(selected),
-          initialValue: selected,
-          isExpanded: true,
-          menuMaxHeight: 400,
-          decoration: InputDecoration(
-            labelText: 'โมเดล',
-            border: const OutlineInputBorder(),
-            errorText: error == null ? null : 'โหลดรายชื่อโมเดลไม่ได้ — $error',
-            errorMaxLines: 3,
-            helperText: !hasKey
-                ? 'บันทึก API key ก่อน เพื่อโหลดรายชื่อโมเดล'
-                : models.isLoading
-                    ? 'กำลังโหลดรายชื่อโมเดล…'
-                    : list.contains(selected)
-                        ? '${list.length} โมเดลจาก AI Studio'
-                        : 'โมเดลที่เลือกไว้ไม่อยู่ในรายชื่อ — เลือกใหม่',
-            helperMaxLines: 2,
-          ),
-          items: [for (final id in items) DropdownMenuItem(value: id, child: Text(id, overflow: TextOverflow.ellipsis))],
-          onChanged: list.isEmpty ? null : (id) => id == null ? null : ref.read(aiSettingsProvider.notifier).setStudioModel(id),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: IconButton(
-          tooltip: 'โหลดรายชื่อโมเดลใหม่',
-          onPressed: !hasKey || models.isLoading ? null : () => ref.invalidate(studioModelsProvider),
-          icon: models.isLoading
-              ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.refresh),
-        ),
-      ),
-    ]);
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Text(text, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
-      );
 }

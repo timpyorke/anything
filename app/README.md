@@ -1,7 +1,7 @@
 # anything - diary's — แอปมือถือ (Flutter)
 
 บันทึกชีวิตด้วย AI: เล่าเป็นภาษาธรรมชาติ → AI เสนอสิ่งที่จะบันทึก → คุณยืนยัน
-ข้อมูลอยู่บน Supabase · AI เลือกได้ระหว่าง Gemma 4 E2B บนเครื่อง หรือ Google AI Studio (ใส่ API key เอง)
+ข้อมูลอยู่บน Supabase · AI เลือกได้ระหว่าง Gemma 4 E2B บนเครื่อง หรือบริการออนไลน์ด้วย API key ของคุณเอง: Google AI Studio, Claude, OpenAI, OpenRouter
 
 ## รัน
 ```

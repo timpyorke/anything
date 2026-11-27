@@ -52,7 +52,7 @@ class _Ai extends AiSettingsViewModel {
   @override
   Future<LlmProvider?> resolveProvider() async => llm;
   @override
-  Future<void> setStudioKey(String? key) => gate.future;
+  Future<void> setKey(AiProviderKind kind, String? key) => gate.future;
 }
 
 Future<void> _settle() => Future<void>.delayed(const Duration(milliseconds: 20));
@@ -136,7 +136,7 @@ void main() {
 
   test('settings: page closed while saving the key', () async {
     final sub = c.listen(settingsViewModelProvider, (_, _) {});
-    final saving = c.read(settingsViewModelProvider.notifier).saveKey('k');
+    final saving = c.read(settingsViewModelProvider.notifier).saveKey(AiProviderKind.aiStudio, 'k');
     sub.close();
     await _settle();
     keyGate.complete();
