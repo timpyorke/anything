@@ -96,12 +96,19 @@ class VoiceViewModel extends Notifier<VoiceState> {
     if (text.isEmpty) {
       state = state.copyWith(
         notice: _speechError == null
-            ? 'ไม่ได้ยินเสียง กดค้างแล้วพูดใหม่ได้เลย'
+            ? 'ไม่ได้ยินเสียง แตะไมค์แล้วพูดใหม่ได้เลย'
             : 'รู้จำเสียงในเครื่องไม่ได้ ($_speechError) — ตรวจว่าติดตั้งภาษาไทยสำหรับพิมพ์/สั่งงานด้วยเสียงแล้ว',
       );
       return null;
     }
     return text;
+  }
+
+  /// ผู้ใช้กด "ยกเลิก" ระหว่างฟัง: ทิ้งทุกอย่าง ไม่ส่ง AI
+  void discard() {
+    _pressing = false;
+    _speech.cancel();
+    state = const VoiceState();
   }
 
   /// view ถูกปิดระหว่างฟัง

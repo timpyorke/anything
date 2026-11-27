@@ -5,8 +5,8 @@ import 'assistant_page.dart';
 import 'turn_view_model.dart';
 import 'voice_view_model.dart';
 
-/// ปุ่มหน้าแรก: กดค้างแล้วพูด → ปล่อยเพื่อส่งให้ AI → ผลขึ้นเป็น bottom sheet ให้ยืนยัน
-/// เลื่อนนิ้วขึ้นก่อนปล่อยเพื่อยกเลิก
+/// ปุ่มหน้าแรก: แตะแถบเพื่อพิมพ์ / แตะปุ่มไมค์เพื่อเริ่มพูด → แตะอีกครั้งเพื่อส่งให้ AI
+/// → ผลขึ้นเป็น bottom sheet ให้ยืนยัน (ปุ่ม "ยกเลิก" ระหว่างฟังเพื่อทิ้ง)
 ///
 /// ใช้ระบบรู้จำเสียง "ในเครื่อง" เท่านั้น (onDevice) เพื่อไม่ส่งเสียงไปบริการภายนอก
 class AnythingButton extends ConsumerStatefulWidget {
@@ -47,9 +47,14 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _start(LongPressStartDetails d) async {
+  Future<void> _toggleVoice() async {
+    if (ref.read(voiceViewModelProvider).listening) return _end();
     final nav = Navigator.of(context);
-    if (await _vm.start(d.globalPosition.dy) == VoiceStart.needsSetup) await ensureLlmProvider(nav, ref);
+    if (await _vm.start(0) == VoiceStart.needsSetup) await ensureLlmProvider(nav, ref);
+  }
+
+  Future<void> _cancelVoice() async {
+    _vm.discard();
   }
 
   Future<void> _end() async {
@@ -93,7 +98,6 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
             constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 40),
             child: Card(
               margin: EdgeInsets.zero,
-              color: v.cancel ? scheme.errorContainer : null,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -106,10 +110,10 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    v.cancel ? 'ปล่อยเพื่อยกเลิก' : 'ปล่อยเพื่อส่ง · เลื่อนขึ้นเพื่อยกเลิก',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: v.cancel ? scheme.error : null),
-                  ),
+                  Row(children: [
+                    Expanded(child: Text('แตะไมค์อีกครั้งเพื่อส่ง', style: Theme.of(context).textTheme.bodySmall)),
+                    TextButton(onPressed: _cancelVoice, child: const Text('ยกเลิก')),
+                  ]),
                 ]),
               ),
             ),
@@ -148,18 +152,22 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
         )
       else
         Row(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(width: 68), // เว้นซ้ายเท่าปุ่มกล้อง+ช่องว่าง เพื่อให้ปุ่มคุยอยู่กลางจอจริง
-          GestureDetector(
-            onLongPressStart: _start,
-            onLongPressMoveUpdate: (d) => _vm.move(d.globalPosition.dy),
-            onLongPressEnd: (_) => _end(),
-            onLongPressCancel: _end,
-            child: FloatingActionButton.extended(
-              heroTag: 'voice_capture',
-              onPressed: _openTyping,
-              icon: Icon(v.listening ? Icons.mic : Icons.edit_outlined),
-              label: Text(v.listening ? 'กำลังฟัง…' : 'พิมพ์ หรือกดค้างเพื่อคุย'),
-            ),
+          const SizedBox(width: 68), // เว้นซ้ายเท่าปุ่มกล้อง+ช่องว่าง เพื่อให้ปุ่มกลางอยู่กลางจอจริง
+          FloatingActionButton.extended(
+            heroTag: 'voice_capture',
+            onPressed: v.listening ? null : _openTyping,
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('พิมพ์เล่าอะไรก็ได้'),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'mic_capture',
+            shape: const CircleBorder(),
+            tooltip: v.listening ? 'หยุดและส่ง' : 'พูด',
+            backgroundColor: v.listening ? scheme.error : null,
+            foregroundColor: v.listening ? scheme.onError : null,
+            onPressed: _toggleVoice,
+            child: Icon(v.listening ? Icons.stop : Icons.mic),
           ),
           const SizedBox(width: 12),
           FloatingActionButton(

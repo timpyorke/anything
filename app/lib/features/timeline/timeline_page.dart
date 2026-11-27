@@ -30,7 +30,8 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
     super.dispose();
   }
 
-  void _push(Widget page) => Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  void _push(Widget page) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
 
   @override
   Widget build(BuildContext context) {
@@ -38,14 +39,20 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
     final f = ref.watch(timelineFilterProvider);
     final fvm = ref.read(timelineFilterProvider.notifier);
     final view = ref.watch(timelineViewProvider);
-    final now = view.now, list = [...view.upcoming, ...view.past], upcoming = view.upcoming, past = view.past;
+    final now = view.now,
+        list = [...view.upcoming, ...view.past],
+        upcoming = view.upcoming,
+        past = view.past;
     return Scaffold(
       appBar: AppBar(
         title: _searching
             ? TextField(
                 controller: _search,
                 autofocus: true,
-                decoration: const InputDecoration(hintText: 'ค้นหาชื่อ เนื้อหา หมวด…', border: InputBorder.none),
+                decoration: const InputDecoration(
+                  hintText: 'ค้นหาชื่อ เนื้อหา หมวด…',
+                  border: InputBorder.none,
+                ),
                 onChanged: fvm.setQuery,
               )
             : const Text('Timeline'),
@@ -64,9 +71,14 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
           IconButton(
             tooltip: 'ภาพรวม',
             icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: () => _push(OverviewPage(openTimeline: () => Navigator.pop(context))),
+            onPressed: () =>
+                _push(OverviewPage(openTimeline: () => Navigator.pop(context))),
           ),
-          IconButton(tooltip: 'ตั้งค่า', icon: const Icon(Icons.settings_outlined), onPressed: () => _push(const SettingsPage())),
+          IconButton(
+            tooltip: 'ตั้งค่า',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => _push(const SettingsPage()),
+          ),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
@@ -83,8 +95,15 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                   padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
                   child: Row(
                     children: [
-                      if (f.day != null) Text('${fmtDate(f.day!)} · ', style: Theme.of(context).textTheme.bodySmall),
-                      Text('${list.length} รายการ', style: Theme.of(context).textTheme.bodySmall),
+                      if (f.day != null)
+                        Text(
+                          '${fmtDate(f.day!)} · ',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      Text(
+                        '${list.length} รายการ',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                       const Spacer(),
                       TextButton(
                         onPressed: () {
@@ -98,13 +117,18 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                 ),
               ),
             if (s.loading && s.entries.isEmpty)
-              const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              )
             else if (s.error != null && s.entries.isEmpty)
               SliverFillRemaining(
                 child: EmptyState(
                   icon: Icons.cloud_off,
                   text: 'โหลดข้อมูลไม่สำเร็จ\n${s.error}',
-                  action: FilledButton(onPressed: ref.read(diaryViewModelProvider.notifier).load, child: const Text('ลองใหม่')),
+                  action: FilledButton(
+                    onPressed: ref.read(diaryViewModelProvider.notifier).load,
+                    child: const Text('ลองใหม่'),
+                  ),
                 ),
               )
             else if (list.isEmpty)
@@ -118,8 +142,16 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
                 ),
               )
             else ...[
-              if (upcoming.isNotEmpty) ..._section(context, 'กำลังจะมาถึง', '${upcoming.length} รายการ', upcoming, now),
-              if (upcoming.isNotEmpty && past.isNotEmpty) SliverToBoxAdapter(child: _TodayDivider(now: now)),
+              if (upcoming.isNotEmpty)
+                ..._section(
+                  context,
+                  'กำลังจะมาถึง',
+                  '${upcoming.length} รายการ',
+                  upcoming,
+                  now,
+                ),
+              if (upcoming.isNotEmpty && past.isNotEmpty)
+                SliverToBoxAdapter(child: _TodayDivider(now: now)),
               ..._pastByYear(context, view),
               const SliverToBoxAdapter(child: SizedBox(height: 96)),
             ],
@@ -129,7 +161,13 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
     );
   }
 
-  List<Widget> _section(BuildContext context, String title, String sub, List<Entry> items, DateTime now) => [
+  List<Widget> _section(
+    BuildContext context,
+    String title,
+    String sub,
+    List<Entry> items,
+    DateTime now,
+  ) => [
     SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
@@ -158,7 +196,8 @@ class _TimelinePageState extends ConsumerState<TimelinePage> {
   ];
 
   List<Widget> _pastByYear(BuildContext context, TimelineViewState view) => [
-    for (final MapEntry(key: y, value: items) in view.pastByYear.entries) ..._section(context, '$y', 'พ.ศ. ${be(y)}', items, view.now),
+    for (final MapEntry(key: y, value: items) in view.pastByYear.entries)
+      ..._section(context, '$y', 'พ.ศ. ${be(y)}', items, view.now),
   ];
 }
 
@@ -178,7 +217,11 @@ class _TodayDivider extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
               'วันนี้ · ${fmtDate(now)}',
-              style: TextStyle(color: c, fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: c,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           Expanded(child: Divider(color: c.withValues(alpha: 0.5))),
@@ -198,7 +241,14 @@ class _Summary extends ConsumerWidget {
     final state = ref.watch(diaryViewModelProvider);
     final now = view.now, birth = view.birth, next = view.next;
     final facts = [if (birth != null) 'อายุ ${ageOn(birth.date, now)} ปี'];
-    final nextRel = next == null ? null : relativeLabel(next.shownDate(now), next.lastDate(now), now, isRange: next.endDate != null);
+    final nextRel = next == null
+        ? null
+        : relativeLabel(
+            next.shownDate(now),
+            next.lastDate(now),
+            now,
+            isRange: next.endDate != null,
+          );
     // ไม่ล็อกความสูง: ข้อความยาวแค่ขึ้นบรรทัดใหม่ ไม่มีวันล้นทับ
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
@@ -206,20 +256,36 @@ class _Summary extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (facts.isNotEmpty)
-            Text(facts.join(' · '), style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+            Text(
+              facts.join(' · '),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            ),
           if (next != null) ...[
             if (facts.isNotEmpty) const SizedBox(height: 14),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('ถัดไป${nextRel == null ? '' : ' · $nextRel'}', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text(
+                    'ถัดไป${nextRel == null ? '' : ' · $nextRel'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                    next.title.isEmpty ? state.category(next.category).label : next.title,
+                    next.title.isEmpty
+                        ? state.category(next.category).label
+                        : next.title,
                     style: Theme.of(context).textTheme.titleMedium,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
