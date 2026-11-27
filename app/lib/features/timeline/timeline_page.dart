@@ -28,7 +28,11 @@ class TimelinePage extends ConsumerWidget {
         Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Timeline'),
+        // จอแคบ: ย่อชื่อให้พอดีแทนการถูกตัดท้าย
+        title: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text('Anything ~ diaries'),
+        ),
         actions: [
           IconButton(
             tooltip: 'ค้นหา',
@@ -97,17 +101,29 @@ class TimelinePage extends ConsumerWidget {
             else if (f.active && view.count == 0)
               const SliverFillRemaining(
                 hasScrollBody: false,
-                child: EmptyState(icon: Icons.filter_alt_off, text: 'ไม่พบรายการที่ตรงกับตัวกรอง'),
+                child: EmptyState(
+                  icon: Icons.filter_alt_off,
+                  text: 'ไม่พบรายการที่ตรงกับตัวกรอง',
+                ),
               )
             else ...[
               // กรองอยู่: เส้นเวลาเดียว ไม่ย่ออนาคต เพื่อไม่ให้วันที่เลือกถูกซ่อน
               if (f.active)
-                for (final MapEntry(key: y, value: items) in view.allByYear.entries)
-                  EntrySection(title: '$y', subtitle: 'พ.ศ. ${be(y)}', items: items, now: now)
+                for (final MapEntry(key: y, value: items)
+                    in view.allByYear.entries)
+                  EntrySection(
+                    title: '$y',
+                    subtitle: 'พ.ศ. ${be(y)}',
+                    items: items,
+                    now: now,
+                  )
               else ...[
                 if (view.upcoming.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: UpcomingCard(view: view, onShowAll: () => push(const UpcomingPage())),
+                    child: UpcomingCard(
+                      view: view,
+                      onShowAll: () => push(const UpcomingPage()),
+                    ),
                   ),
                 EntrySection(
                   title: 'วันนี้',
@@ -115,9 +131,11 @@ class TimelinePage extends ConsumerWidget {
                   items: view.current,
                   now: now,
                   impliedBadge: 'วันนี้',
-                  emptyText: 'ยังไม่ได้บันทึก พิมพ์หรือกดไมค์เล่าให้ AI ฟังได้เลย',
+                  emptyText:
+                      'ยังไม่ได้บันทึก พิมพ์หรือกดไมค์เล่าให้ AI ฟังได้เลย',
                 ),
-                for (final MapEntry(key: y, value: items) in view.pastByYear.entries)
+                for (final MapEntry(key: y, value: items)
+                    in view.pastByYear.entries)
                   EntrySection(
                     title: y == now.year ? 'ก่อนหน้านี้' : '$y',
                     subtitle: 'พ.ศ. ${be(y)}',
