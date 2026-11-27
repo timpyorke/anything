@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../core/utils/dates.dart';
 import '../core/utils/markdown.dart';
 import 'metric.dart';
+import 'photo.dart';
 import 'recurrence.dart';
 
 part 'entry.freezed.dart';
@@ -23,10 +24,11 @@ abstract class Entry with _$Entry {
     @Default('manual') String source, // manual | ai | import
     String? legacyRef,
     @Default(<MetricValue>[]) List<MetricValue> metrics,
+    @Default(<Photo>[]) List<Photo> photos,
   }) = _Entry;
 
   bool get isDaily => kind == 'daily';
-  bool get hidden => title.trim().isEmpty && body.trim().isEmpty;
+  bool get hidden => title.trim().isEmpty && body.trim().isEmpty && photos.isEmpty;
   Checklist? get checklist => checklistOf(body);
 
   /// วันที่ใช้แสดง/เรียง: รายการที่เกิดซ้ำใช้ครั้งถัดไป (หรือครั้งสุดท้ายถ้าครบแล้ว)

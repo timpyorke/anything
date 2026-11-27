@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:anything/ai/ai_settings.dart';
 import 'package:anything/ai/llm_provider.dart';
@@ -32,14 +33,16 @@ class _Repo extends FakeDiaryRepository {
 class _Llm implements LlmProvider {
   var reply = Completer<String>();
   String? lastUser;
+  List<Uint8List>? lastImages;
   var cancelled = false;
   @override
   AiProviderKind get kind => AiProviderKind.onDevice;
   @override
   String get model => 'fake';
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) {
+  Future<String> generateJson({required String system, required String user, List<Uint8List> images = const [], Future<void>? cancel}) {
     lastUser = user;
+    lastImages = images;
     cancel?.then((_) => cancelled = true);
     return reply.future;
   }
@@ -54,6 +57,9 @@ class _Ai extends AiSettingsViewModel {
   @override
   Future<void> setKey(AiProviderKind kind, String? key) => gate.future;
 }
+
+const TurnRequest _x = (text: 'x', photos: []);
+const TurnRequest _appointment = (text: 'นัดหมอ', photos: []);
 
 Future<void> _settle() => Future<void>.delayed(const Duration(milliseconds: 20));
 
@@ -81,7 +87,7 @@ void main() {
   const newEntry = '{"actions":[{"type":"create","kind":"event","date":"2026-12-01","category":"health","title":"หาหมอ"}]}';
 
   test('turn: sheet closed while the AI is still thinking cancels the request', () async {
-    final sub = c.listen(turnViewModelProvider('x'), (_, _) {});
+    final sub = c.listen(turnViewModelProvider(_x), (_, _) {});
     await _settle();
     sub.close();
     await _settle();
@@ -92,12 +98,12 @@ void main() {
   });
 
   test('turn: answering a question replaces the proposal and keeps the conversation', () async {
-    final sub = c.listen(turnViewModelProvider('นัดหมอ'), (_, _) {});
+    final sub = c.listen(turnViewModelProvider(_appointment), (_, _) {});
     addTearDown(sub.close);
     llm.reply.complete('{"reply":"วันไหนดี","questions":["นัดวันไหน"],"actions":[]}');
     await _settle();
     llm.reply = Completer()..complete(newEntry);
-    await c.read(turnViewModelProvider('นัดหมอ').notifier).answer(' 1 ธ.ค. ');
+    await c.read(turnViewModelProvider(_appointment).notifier).answer(' 1 ธ.ค. ');
     final turn = sub.read();
     expect(turn.text, '1 ธ.ค.');
     expect(turn.history.single.message, 'นัดหมอ');
@@ -107,11 +113,11 @@ void main() {
   });
 
   test('turn: sheet closed while saving', () async {
-    final sub = c.listen(turnViewModelProvider('x'), (_, _) {});
+    final sub = c.listen(turnViewModelProvider(_x), (_, _) {});
     llm.reply.complete(newEntry);
     await _settle();
     repo.gate = Completer();
-    final applying = c.read(turnViewModelProvider('x').notifier).apply();
+    final applying = c.read(turnViewModelProvider(_x).notifier).apply();
     sub.close();
     await _settle();
     repo.gate!.complete();

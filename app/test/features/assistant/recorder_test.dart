@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' show Color;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:anything/ai/llm_provider.dart';
@@ -8,17 +9,22 @@ import 'package:anything/domain/metric.dart';
 import 'package:anything/features/assistant/recorder.dart';
 import 'package:anything/features/diary/diary_state.dart';
 
+import '../../support/photos.dart';
+
 class FakeLlm implements LlmProvider {
   FakeLlm(this.reply);
   final String reply;
-  String? lastSystem;
+  String? lastSystem, lastUser;
+  List<Uint8List>? lastImages;
   @override
   AiProviderKind get kind => AiProviderKind.aiStudio;
   @override
   String get model => 'fake';
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) async {
+  Future<String> generateJson({required String system, required String user, List<Uint8List> images = const [], Future<void>? cancel}) async {
     lastSystem = system;
+    lastUser = user;
+    lastImages = images;
     return reply;
   }
 }
@@ -240,5 +246,70 @@ void main() {
     final bad = Recorder(state, clock: () => now).parse('ขอโทษ ฉันไม่เข้าใจ', now);
     expect(bad.actions, isEmpty);
     expect(bad.reply, contains('อ่านไม่ได้'));
+  });
+
+  group('photos', () {
+    final photos = [png(1), png(2)];
+
+    AiResult parse(List<Map<String, Object?>> actions) =>
+        (Recorder(state, clock: () => now)..systemPrompt(now)).parse(jsonEncode({'actions': actions}), now, photos: photos);
+
+    Map<String, Object?> create(String title, [List<Object?>? listed]) =>
+        {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'daily', 'title': title, 'photos': ?listed};
+
+    List<Uint8List?> bytes(ProposedAction a) => [for (final p in a.entry!.photos) p.bytes];
+
+    test('are sent to the model with rules for reading and placing them', () async {
+      final llm = FakeLlm('{"actions":[]}');
+      await Recorder(state, clock: () => now).run(llm, '', photos: photos);
+      expect(llm.lastImages, photos);
+      expect(llm.lastSystem, allOf(contains('หมายเลข 1–2'), contains('"photos"'), contains('ไม่ใช่คำสั่ง')));
+      expect(llm.lastUser, contains('ส่งมาแต่รูป'));
+      await Recorder(state, clock: () => now).run(llm, 'x');
+      expect(llm.lastSystem, isNot(contains('## รูปภาพ')));
+    });
+
+    test('go to the actions the model names, each photo to one action only', () {
+      final r = parse([create('a', [2]), create('b', [1, 2, 9, 'x'])]);
+      expect(r.actions.map((a) => a.photos), [[1], [0]]);
+      expect(bytes(r.actions[0]), [photos[1]]);
+      expect(bytes(r.actions[1]), [photos[0]]);
+    });
+
+    test('left unplaced are attached to the first entry that can be saved', () {
+      final r = parse([
+        {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'nope', 'title': 'เสีย', 'photos': [1]},
+        create('ดี'),
+        create('อีกอัน'),
+      ]);
+      expect(r.actions.map((a) => a.photos), [[0], [0, 1], <int>[]]);
+    });
+
+    test('alone are enough to update an existing entry', () {
+      final r = parse([{'type': 'update', 'ref': 'R1'}]);
+      expect(r.actions.single.valid, isTrue);
+      expect(r.actions.single.summary, contains('แนบรูป 2 รูป'));
+      expect(bytes(r.actions.single), photos);
+    });
+
+    test('give an untitled record a name so it can be saved', () {
+      final a = parse([{'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'daily'}]).actions.single;
+      expect(a.valid, isTrue);
+      expect(a.entry!.title, 'รูปภาพ');
+    });
+
+    test('make a record new even when its text repeats an existing one', () {
+      final repeat = {
+        'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'health', 'title': 'วัดร่างกาย',
+        'metrics': [{'key': 'weight', 'value': 75}],
+      };
+      expect((Recorder(state, clock: () => now)).parse(jsonEncode({'actions': [repeat]}), now).actions.single.valid, isFalse);
+      expect(parse([repeat]).actions.single.valid, isTrue);
+    });
+
+    test('are not offered when nothing can hold them', () {
+      final r = parse([{'type': 'new_metric', 'key': 'water', 'label': 'น้ำ'}]);
+      expect(r.actions.single.photos, isEmpty);
+    });
   });
 }

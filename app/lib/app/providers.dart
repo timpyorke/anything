@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' as sb show AuthState;
 
 import '../ai/on_device_provider.dart';
 import '../ai/voice_recorder.dart';
+import '../data/photo_picker.dart';
 import '../data/supabase_diary_repository.dart';
 import '../domain/repositories/diary_repository.dart';
 
@@ -39,6 +40,8 @@ final voiceRecorderProvider = Provider<VoiceRecorder>((ref) {
   ref.onDispose(recorder.dispose);
   return recorder;
 });
+
+final photoPickerProvider = Provider<PhotoPicker>((ref) => DevicePhotoPicker());
 
 /// ถอดเสียงเป็นข้อความในเครื่อง (ใช้ Gemma เสมอ ไม่ว่าจะเลือก AI ตัวไหนไว้บันทึก)
 final transcriberProvider = Provider<Transcriber>((ref) => const GemmaTranscriber());

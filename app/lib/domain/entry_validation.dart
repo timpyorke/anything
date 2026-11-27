@@ -1,5 +1,6 @@
 
 import 'entry.dart';
+import 'photo.dart';
 import 'recurrence.dart';
 
 /// กฎเดียวกับ CHECK constraint ใน Supabase — ตรวจในแอปก่อน ให้ข้อความผิดพลาดเป็นภาษาไทย
@@ -20,6 +21,7 @@ List<String> validateEntry(Entry e, {required Set<String> categories, required S
     if (!metricKeys.contains(m.key)) errors.add('ไม่มี metric "${m.key}"');
     if (m.value.isNaN || m.value.isInfinite) errors.add('ค่า ${m.key} ไม่ใช่ตัวเลข');
   }
-  if (!e.isDaily && e.hidden && e.metrics.isEmpty) errors.add('ต้องมีชื่อ เนื้อหา หรือตัวเลขอย่างน้อยหนึ่งอย่าง');
+  if (!e.isDaily && e.hidden && e.metrics.isEmpty) errors.add('ต้องมีชื่อ เนื้อหา รูป หรือตัวเลขอย่างน้อยหนึ่งอย่าง');
+  if (e.photos.length > maxPhotosPerEntry) errors.add('แนบรูปได้ไม่เกิน $maxPhotosPerEntry รูปต่อรายการ');
   return errors;
 }

@@ -1,11 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../app/providers.dart';
 import '../../core/utils/dates.dart';
+import '../../data/photo_picker.dart';
 import '../../domain/entry.dart';
 import '../../domain/metric.dart';
+import '../../domain/photo.dart';
 import '../../domain/recurrence.dart';
 import '../diary/diary_view_model.dart';
+import '../photos/pick_photos.dart';
 
 part 'entry_editor_view_model.freezed.dart';
 
@@ -28,6 +32,8 @@ abstract class EntryEditorState with _$EntryEditorState {
     @Default(<String>[]) List<String> errors,
     @Default(false) bool saving,
     @Default(false) bool draft,
+    @Default(false) bool picking, // กำลังเลือก/ถ่ายรูป
+    String? notice, // ข้อความแจ้งครั้งเดียว (View ฟังผ่าน ref.listen)
     EditorExit? exit,
   }) = _EntryEditorState;
 
@@ -58,6 +64,22 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
   void setEvery(String? every) =>
       state = state.copyWith(every: every, entry: every == null ? state.entry : state.entry.copyWith(endDate: null));
 
+  Future<void> addPhotos(PhotoSource source) async {
+    if (state.picking || state.saving) return;
+    state = state.copyWith(picking: true, notice: null);
+    final room = maxPhotosPerEntry - state.entry.photos.length;
+    final picked = await pickPhotos(ref.read(photoPickerProvider), source, room: room);
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      picking: false,
+      notice: picked.notice,
+      entry: state.entry.copyWith(photos: [...state.entry.photos, for (final b in picked.photos) Photo(bytes: b)]),
+    );
+  }
+
+  void removePhoto(Photo photo) => state = state.copyWith(
+      entry: state.entry.copyWith(photos: [...state.entry.photos.where((p) => !identical(p, photo))]));
+
   /// รวมค่าจากฟอร์ม ตรวจ แล้วบันทึก — สำเร็จแล้วตั้ง state.exit = saved
   /// [metrics] = (key, ข้อความที่พิมพ์) ของช่องตัวเลข
   Future<void> save({
@@ -84,7 +106,11 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
     state = state.copyWith(saving: true);
     // ผู้ใช้กดกลับได้ระหว่างบันทึก (provider ถูกทิ้ง) จึงเช็ก ref.mounted ก่อนแตะ state
     try {
-      await ref.read(diaryViewModelProvider.notifier).save(out);
+      final removed = [
+        for (final p in args.entry?.photos ?? const <Photo>[])
+          if (!p.isNew && !out.photos.contains(p)) p,
+      ];
+      await ref.read(diaryViewModelProvider.notifier).save(out, removedPhotos: removed);
       if (ref.mounted) state = state.copyWith(exit: EditorExit.saved, saving: false);
     } catch (err) {
       if (ref.mounted) state = state.copyWith(errors: ['บันทึกไม่สำเร็จ: $err'], saving: false);

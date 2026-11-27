@@ -11,6 +11,7 @@ import '../../domain/recurrence.dart';
 import '../diary/deleted_snack_bar.dart';
 import '../diary/diary_state.dart';
 import '../diary/diary_view_model.dart';
+import '../photos/photo_widgets.dart';
 
 /// การ์ดรายการบน Timeline
 class EntryCard extends ConsumerWidget {
@@ -71,6 +72,10 @@ class EntryCard extends ConsumerWidget {
               if (e.body.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 MarkdownView(e.body, accent: cat.color, onToggle: (i, done) => _toggle(context, ref, i, done)),
+              ],
+              if (e.photos.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                PhotoStrip(e.photos, size: 60, max: 4),
               ],
               if (e.endDate != null || e.recurrence != null || (rs != null && rs.next == null) || cl != null || e.source == 'ai' || (rs == null && e.metrics.isNotEmpty)) ...[
                 const SizedBox(height: 8),

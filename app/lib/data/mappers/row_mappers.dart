@@ -4,6 +4,7 @@ import '../../core/utils/dates.dart';
 import '../../domain/category.dart';
 import '../../domain/entry.dart';
 import '../../domain/metric.dart';
+import '../../domain/photo.dart';
 import '../../domain/recurrence.dart';
 
 /// แปลงแถวจาก Supabase ↔ entity ของ domain (ที่เดียวที่รู้ชื่อคอลัมน์)
@@ -37,6 +38,12 @@ Map<String, dynamic> metricDefToRow(MetricDef m) => {'key': m.key, 'label': m.la
 MetricValue metricValueFromRow(Map<String, dynamic> r) =>
     MetricValue(r['key'] as String, (r['value'] as num).toDouble(), (r['unit'] as String?) ?? '');
 
+/// แถวของ entry_photos → รูปเรียงตามลำดับที่แนบ
+List<Photo> photosFromRows(List<dynamic>? rows) {
+  final sorted = [...?rows?.cast<Map>()]..sort((a, b) => (a['seq'] as int).compareTo(b['seq'] as int));
+  return [for (final r in sorted) Photo(path: r['path'] as String)];
+}
+
 Entry entryFromRow(Map<String, dynamic> r) => Entry(
       id: r['id'] as String,
       kind: r['kind'] as String,
@@ -53,9 +60,10 @@ Entry entryFromRow(Map<String, dynamic> r) => Entry(
       metrics: [
         for (final m in (r['metric_values'] as List? ?? const [])) metricValueFromRow(Map<String, dynamic>.from(m as Map)),
       ],
+      photos: photosFromRows(r['entry_photos'] as List?),
     );
 
-/// แถวของตาราง entries (ไม่รวม metric_values)
+/// แถวของตาราง entries (ไม่รวม metric_values และ entry_photos)
 Map<String, dynamic> entryToRow(Entry e) => {
       'kind': e.kind,
       'date': ymd(e.date),

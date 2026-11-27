@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:anything/ai/ai_settings.dart';
 import 'package:anything/ai/llm_provider.dart';
@@ -19,7 +20,7 @@ class _Llm implements LlmProvider {
   @override
   String get model => 'fake';
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) {
+  Future<String> generateJson({required String system, required String user, List<Uint8List> images = const [], Future<void>? cancel}) {
     cancel?.then((_) => cancelled = true);
     return reply.future;
   }

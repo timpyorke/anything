@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
 
+import '../domain/photo.dart';
 import 'llm_provider.dart';
 
 /// Google AI Studio (Gemini API) ด้วย API key ของผู้ใช้
@@ -54,7 +57,12 @@ class AiStudioProvider implements LlmProvider {
   bool get _isGemma => model.toLowerCase().startsWith('gemma');
 
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) async {
+  Future<String> generateJson({
+    required String system,
+    required String user,
+    List<Uint8List> images = const [],
+    Future<void>? cancel,
+  }) async {
     final uri = Uri.https('generativelanguage.googleapis.com', '/v1beta/models/$model:generateContent');
     final body = <String, Object?>{
       if (!_isGemma)
@@ -67,6 +75,10 @@ class AiStudioProvider implements LlmProvider {
         {
           'role': 'user',
           'parts': [
+            for (final image in images)
+              {
+                'inlineData': {'mimeType': imageMime(image), 'data': base64Encode(image)},
+              },
             {'text': _isGemma ? '$system\n\n---\n\n$user' : user},
           ],
         },

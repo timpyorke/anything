@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
 
+import '../domain/photo.dart';
 import 'llm_http.dart';
 import 'llm_provider.dart';
 
@@ -43,7 +47,12 @@ class AnthropicProvider implements LlmProvider {
   }
 
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) async {
+  Future<String> generateJson({
+    required String system,
+    required String user,
+    List<Uint8List> images = const [],
+    Future<void>? cancel,
+  }) async {
     final fallback = _fallbackModels.contains(model);
     final (status, json) = await llmRequest(
       _client,
@@ -55,7 +64,19 @@ class AnthropicProvider implements LlmProvider {
         'max_tokens': 16000,
         'system': system,
         'messages': [
-          {'role': 'user', 'content': user},
+          {
+            'role': 'user',
+            'content': images.isEmpty
+                ? user
+                : [
+                    for (final image in images)
+                      {
+                        'type': 'image',
+                        'source': {'type': 'base64', 'media_type': imageMime(image), 'data': base64Encode(image)},
+                      },
+                    {'type': 'text', 'text': user},
+                  ],
+          },
         ],
         if (fallback) 'fallbacks': 'default',
       },

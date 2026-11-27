@@ -1,8 +1,12 @@
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/category.dart';
 import '../domain/entry.dart';
 import '../domain/metric.dart';
+import '../domain/photo.dart';
 import '../domain/repositories/diary_repository.dart';
 import 'mappers/row_mappers.dart';
 
@@ -11,7 +15,8 @@ class SupabaseDiaryRepository implements DiaryRepository {
   SupabaseDiaryRepository(this.db);
   final SupabaseClient db;
 
-  static const _entryColumns = '*, metric_values(key, value, unit)';
+  static const _entryColumns = '*, metric_values(key, value, unit), entry_photos(path, seq)';
+  static const _photoBucket = 'entry-photos';
 
   /// ผู้ใช้ใหม่ยังไม่มีหมวด → สร้างค่าเริ่มต้นจากฟังก์ชันในฐานข้อมูล
   @override
@@ -34,21 +39,43 @@ class SupabaseDiaryRepository implements DiaryRepository {
           entryFromRow(r),
       ];
 
+  // อัปโหลดรูปก่อนเขียนแถว: อัปโหลดพังจะไม่มีรายการครึ่งๆ กลางๆ ค้างในฐานข้อมูล
   @override
   Future<Entry> insert(Entry e) async {
-    final row = await db.from('entries').insert(entryToRow(e)).select('id').single();
-    final id = row['id'] as String;
-    await _writeMetrics(id, e.metrics);
+    final id = await _withUploads(e.photos, (paths) async {
+      final row = await db.from('entries').insert(entryToRow(e)).select('id').single();
+      final id = row['id'] as String;
+      try {
+        await _writeMetrics(id, e.metrics);
+        await _writePhotos(id, paths);
+      } catch (_) {
+        // ลบแถวที่เพิ่งสร้าง ผู้ใช้กดบันทึกใหม่จะได้ไม่เกิดรายการซ้ำ
+        await db.from('entries').delete().eq('id', id);
+        rethrow;
+      }
+      return id;
+    });
     return _fetch(id);
   }
 
   @override
-  Future<Entry> update(Entry e) async {
-    await db.from('entries').update(entryToRow(e)).eq('id', e.id!);
-    await db.from('metric_values').delete().eq('entry_id', e.id!);
-    await _writeMetrics(e.id!, e.metrics);
+  Future<Entry> update(Entry e, {List<Photo> removedPhotos = const []}) async {
+    await _withUploads(e.photos, (paths) async {
+      await db.from('entries').update(entryToRow(e)).eq('id', e.id!);
+      await db.from('metric_values').delete().eq('entry_id', e.id!);
+      await _writeMetrics(e.id!, e.metrics);
+      await _writePhotos(e.id!, paths);
+    });
+    final removed = [for (final p in removedPhotos) ?p.path];
+    if (removed.isNotEmpty) {
+      await db.from('entry_photos').delete().eq('entry_id', e.id!).inFilter('path', removed);
+      await _removeFiles(removed);
+    }
     return _fetch(e.id!);
   }
+
+  @override
+  Future<Uint8List> photoBytes(String path) => db.storage.from(_photoBucket).download(path);
 
   @override
   Future<void> softDelete(String id) =>
@@ -132,6 +159,40 @@ class SupabaseDiaryRepository implements DiaryRepository {
     await db.from('metric_values').insert([
       for (final m in metrics) {'entry_id': entryId, 'key': m.key, 'value': m.value, 'unit': m.unit},
     ]);
+  }
+
+  /// อัปโหลดรูปใหม่แล้วส่ง path ให้ [write] — ขั้นไหนพังก็ลบไฟล์ที่อัปโหลดไปแล้ว
+  Future<T> _withUploads<T>(List<Photo> photos, Future<T> Function(List<String> paths) write) async {
+    final uploaded = <String>[];
+    try {
+      for (final p in photos.where((p) => p.isNew)) {
+        final bytes = p.bytes!;
+        final mime = imageMime(bytes)!;
+        final random = Random.secure();
+        final name = [for (var i = 0; i < 16; i++) random.nextInt(256).toRadixString(16).padLeft(2, '0')].join();
+        // โฟลเดอร์ตาม user id คือสิ่งที่ policy ของ storage ใช้ตรวจสิทธิ์
+        final path = '${db.auth.currentUser!.id}/$name.${mime.split('/').last}';
+        await db.storage.from(_photoBucket).uploadBinary(path, bytes, fileOptions: FileOptions(contentType: mime));
+        uploaded.add(path);
+      }
+      return await write(uploaded);
+    } catch (_) {
+      await _removeFiles(uploaded);
+      rethrow;
+    }
+  }
+
+  Future<void> _writePhotos(String entryId, List<String> paths) async {
+    if (paths.isEmpty) return;
+    await db.from('entry_photos').insert([for (final path in paths) {'entry_id': entryId, 'path': path}]);
+  }
+
+  /// ลบไฟล์ไม่สำเร็จไม่ควรทำให้งานหลักพัง — อย่างมากก็เหลือไฟล์ที่ไม่มีใครอ้างถึง
+  Future<void> _removeFiles(List<String> paths) async {
+    if (paths.isEmpty) return;
+    try {
+      await db.storage.from(_photoBucket).remove(paths);
+    } catch (_) {}
   }
 
   Future<Entry> _fetch(String id) async => entryFromRow(await db.from('entries').select(_entryColumns).eq('id', id).single());

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ai/llm_provider.dart';
+import '../../data/photo_picker.dart';
+import '../../domain/photo.dart';
+import '../photos/photo_widgets.dart';
 import 'assistant_page.dart';
+import 'photo_draft_view_model.dart';
 import 'turn_view_model.dart';
 import 'voice_view_model.dart';
 
 /// กล่องพิมพ์หน้าแรกแบบแอป AI: พิมพ์แล้วกดส่ง หรือกดไมค์ (ตอนช่องว่าง) เพื่อพูด → กดส่งอีกครั้ง
-/// → ผลขึ้นเป็น bottom sheet ให้ยืนยัน (ปุ่ม "ยกเลิก" ระหว่างอัด/ถอดเสียงเพื่อทิ้ง)
+/// แนบรูปจากกล้องหรือคลังรูปส่งไปพร้อมกันได้ → ผลขึ้นเป็น bottom sheet ให้ยืนยัน (ปุ่ม "ยกเลิก" ระหว่างอัด/ถอดเสียงเพื่อทิ้ง)
 ///
 /// เสียงถูกถอดเป็นข้อความด้วย Gemma ในเครื่อง ไม่ส่งเสียงไปบริการภายนอก
 class AnythingButton extends ConsumerStatefulWidget {
@@ -20,19 +25,23 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
   final _text = TextEditingController();
   final _focus = FocusNode();
   late final VoiceViewModel _vm;
+  late final PhotoDraftViewModel _photos;
+  bool _sending = false;
 
   @override
   void initState() {
     super.initState();
     // อ่านตั้งแต่ตอนนี้ เพราะใช้ ref ใน dispose ไม่ได้
     _vm = ref.read(voiceViewModelProvider.notifier);
+    _photos = ref.read(photoDraftViewModelProvider.notifier);
+    // เลื่อนไปหลัง build แรก (ห้ามแก้ provider ระหว่างสร้าง widget)
+    Future.microtask(_photos.restoreLost);
   }
 
   Future<void> _submitText() async {
     final text = _text.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && ref.read(photoDraftViewModelProvider).photos.isEmpty) return;
     final nav = Navigator.of(context), messenger = ScaffoldMessenger.of(context);
-    _text.clear();
     _focus.unfocus();
     await _ask(text, nav, messenger);
   }
@@ -41,6 +50,11 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _addPhotos(PhotoSource source) async {
+    _focus.unfocus();
+    await _photos.add(source);
   }
 
   Future<void> _startVoice() async {
@@ -63,15 +77,25 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
   }
 
   Future<void> _ask(String text, NavigatorState nav, ScaffoldMessengerState messenger) async {
-    final provider = await ensureLlmProvider(nav, ref);
+    if (_sending) return; // แตะส่งซ้ำระหว่างตรวจการตั้งค่า
+    _sending = true;
+    final LlmProvider? provider;
+    try {
+      provider = await ensureLlmProvider(nav, ref);
+    } finally {
+      _sending = false;
+    }
+    // ยังไม่ตั้งค่า AI → ข้อความและรูปยังอยู่ในกล่องให้ส่งใหม่ได้
     if (provider == null) return;
+    _text.clear();
+    final TurnRequest request = (text: text, photos: _photos.take());
     await showModalBottomSheet<void>(
       // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
       context: nav.context,
       isScrollControlled: true,
       // ปัดลงปิด sheet ได้โดยข้าม PopScope จึงปิดการลากไว้ (กันปิดพลาดตอน AI คิดอยู่)
       enableDrag: false,
-      builder: (_) => _ResultSheet(text: text, messenger: messenger),
+      builder: (_) => _ResultSheet(request: request, messenger: messenger),
     );
   }
 
@@ -92,7 +116,11 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     ref.listen(voiceViewModelProvider.select((v) => v.seconds >= maxVoiceSeconds), (_, full) {
       if (full) _end();
     });
+    ref.listen(photoDraftViewModelProvider.select((p) => p.notice), (_, notice) {
+      if (notice != null) _toast(notice);
+    });
     final v = ref.watch(voiceViewModelProvider);
+    final draft = ref.watch(photoDraftViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
     // TextFieldTapRegion: แตะปุ่มในกล่องไม่นับเป็น "แตะข้างนอก" คีย์บอร์ดจึงไม่หุบ
     return TextFieldTapRegion(
@@ -114,7 +142,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
                   ? _listeningContent(context, v.seconds)
                   : v.transcribing
                       ? _transcribingContent(context)
-                      : _inputContent(context),
+                      : _inputContent(context, draft),
             ),
           ),
         ),
@@ -122,9 +150,16 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     );
   }
 
-  List<Widget> _inputContent(BuildContext context) {
+  List<Widget> _inputContent(BuildContext context, PhotoDraftState draft) {
     final style = Theme.of(context).textTheme.bodyLarge;
+    final full = draft.photos.length >= maxPhotosPerMessage;
+    final canPick = !draft.picking && !full;
     return [
+      if (draft.photos.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+          child: PhotoStrip([for (final b in draft.photos) Photo(bytes: b)], onRemove: _photos.remove),
+        ),
       TextField(
         controller: _text,
         focusNode: _focus,
@@ -150,14 +185,31 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
         IconButton(
           icon: const Icon(Icons.photo_camera_outlined),
           tooltip: 'กล้อง',
-          onPressed: () => _toast('ฟีเจอร์กล้องกำลังมาเร็วๆ นี้'),
+          onPressed: canPick ? () => _addPhotos(PhotoSource.camera) : null,
         ),
+        IconButton(
+          icon: const Icon(Icons.photo_library_outlined),
+          tooltip: 'คลังรูป',
+          onPressed: canPick ? () => _addPhotos(PhotoSource.gallery) : null,
+        ),
+        if (draft.picking) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
         const Spacer(),
         ValueListenableBuilder(
           valueListenable: _text,
-          builder: (context, value, _) => value.text.trim().isEmpty
-              ? _primaryButton(context, icon: Icons.mic, tooltip: 'พูด', onPressed: _startVoice)
-              : _primaryButton(context, icon: Icons.arrow_upward, tooltip: 'ส่ง', onPressed: _submitText),
+          builder: (context, value, _) {
+            final empty = value.text.trim().isEmpty;
+            final send = _primaryButton(context,
+                icon: Icons.arrow_upward, tooltip: 'ส่ง', onPressed: draft.picking ? null : _submitText);
+            if (!empty) return send;
+            if (draft.photos.isEmpty) {
+              return _primaryButton(context, icon: Icons.mic, tooltip: 'พูด', onPressed: _startVoice);
+            }
+            // มีแต่รูป: ส่งได้เลย หรือจะพูดเล่าประกอบก็ได้
+            return Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(icon: const Icon(Icons.mic), tooltip: 'พูด', onPressed: _startVoice),
+              send,
+            ]);
+          },
         ),
       ]),
     ];
@@ -242,7 +294,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     BuildContext context, {
     required IconData icon,
     required String tooltip,
-    required VoidCallback onPressed,
+    required VoidCallback? onPressed,
   }) {
     final scheme = Theme.of(context).colorScheme;
     return IconButton.filled(
@@ -255,13 +307,13 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
 }
 
 class _ResultSheet extends ConsumerWidget {
-  const _ResultSheet({required this.text, required this.messenger});
-  final String text;
+  const _ResultSheet({required this.request, required this.messenger});
+  final TurnRequest request;
   final ScaffoldMessengerState messenger;
 
   Future<void> _apply(BuildContext context, WidgetRef ref) async {
     final navigator = Navigator.of(context), route = ModalRoute.of(context);
-    final result = await ref.read(turnViewModelProvider(text).notifier).apply();
+    final result = await ref.read(turnViewModelProvider(request).notifier).apply();
     // ผู้ใช้อาจปิด sheet ไปแล้วระหว่างบันทึก: ห้าม pop ซ้ำ และต้องแจ้ง error ทาง snackbar แทน
     final open = route?.isCurrent ?? false;
     if (result.error == null) {
@@ -274,7 +326,7 @@ class _ResultSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final thinking = ref.watch(turnViewModelProvider(text).select((t) => t.thinking));
+    final thinking = ref.watch(turnViewModelProvider(request).select((t) => t.thinking));
     // ระหว่าง AI คิด แตะข้างนอก/กดย้อนกลับไม่ปิด ต้องกด "ยกเลิก"
     return PopScope(
       canPop: !thinking,
@@ -287,7 +339,7 @@ class _ResultSheet extends ConsumerWidget {
             child: SingleChildScrollView(
               reverse: true, // เห็นข้อความล่าสุดและช่องตอบเสมอ
               padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-              child: TurnView(text: text, onApply: () => _apply(context, ref)),
+              child: TurnView(request: request, onApply: () => _apply(context, ref)),
             ),
           ),
         ),

@@ -26,6 +26,7 @@ entries(id, user_id, kind[event|daily], date, end_date, category→categories,
         title, body(markdown), every, times, until, source[manual|ai|import],
         legacy_ref, created_at, updated_at, deleted_at)
 metric_values(id, user_id, entry_id→entries, key→metric_defs, value, unit)   UNIQUE (entry_id, key)
+entry_photos(id, user_id, entry_id→entries, path, seq, created_at)   ไฟล์อยู่ใน Storage bucket ส่วนตัว entry-photos
 ai_logs(id, user_id, provider, model, input, output jsonb, status, error, created_at)  — insert/select เท่านั้น
 ```
 ทุกตารางเปิด RLS: `user_id = auth.uid()` · แอปใช้ publishable key เท่านั้น (ไม่มี service key ในแอป)
@@ -68,6 +69,13 @@ flutter run --dart-define-from-file=env.json
 - **แอปเป็นแหล่งความจริงเดียว** — ระบบ markdown เดิม (`legacy/`) ถูกลบออกจาก repo แล้ว (กู้ได้จาก git commit `a4b6d1d`)
 - ข้อมูลใหม่บันทึกผ่านแอปเท่านั้น
 
+### รูปถ่าย (กล้อง / คลังรูป)
+- หน้าแรก: แนบได้ 4 รูปต่อข้อความ → AI ที่เลือกอ่านรูปและเสนอรายการ → ยืนยันแล้วรูปถูกเก็บกับรายการ
+- หน้าแก้ไข: เพิ่ม/ลบรูปเองได้ (ไม่เกิน 10 รูปต่อรายการ) ไม่ส่งให้ AI
+- รูปถูกย่อเหลือด้านยาว 1600 px และตัดข้อมูลกำกับของ JPEG (เช่น พิกัด GPS) ก่อนส่ง AI และก่อนอัปโหลด
+- ถ้าเลือก AI ออนไลน์ รูปถูกส่งไปที่บริการนั้นพร้อมข้อความ · Gemma บนเครื่องอ่านรูปในมือถือ
+- ต้องรัน migration `*_entry_photos.sql` ก่อนใช้แอปรุ่นนี้ (ไม่รันจะโหลดบันทึกไม่ได้)
+
 ### การเลือก AI ในแอป
 | | Gemma 4 E2B บนเครื่อง | Google AI Studio |
 |---|---|---|
@@ -92,7 +100,7 @@ flutter run --dart-define-from-file=env.json
 
 ## Phase 3 — ต่อยอด
 - ค้นหาด้วยความหมาย (EmbeddingGemma บนเครื่อง + pgvector)
-- บันทึกด้วยเสียง (Gemma 4 รับเสียงได้) และรูปใบเสร็จ
+- บันทึกด้วยเสียง (Gemma 4 รับเสียงได้) และรูปใบเสร็จ — ทำแล้ว
 - Flutter web (ถ้าอยากดูบนคอมพิวเตอร์)
 
 ## ความเสี่ยงและวิธีรับมือ

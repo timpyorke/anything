@@ -1,8 +1,10 @@
+import 'dart:typed_data';
 import 'dart:ui' show Color;
 
 import 'package:anything/domain/category.dart';
 import 'package:anything/domain/entry.dart';
 import 'package:anything/domain/metric.dart';
+import 'package:anything/domain/photo.dart';
 import 'package:anything/domain/repositories/diary_repository.dart';
 
 /// repository ในหน่วยความจำ สำหรับทดสอบ ViewModel โดยไม่แตะเครือข่าย
@@ -23,16 +25,34 @@ class FakeDiaryRepository implements DiaryRepository {
   Future<List<Entry>> entries() async => [for (final e in rows) if (!deleted.contains(e.id)) e];
   @override
   Future<Entry> insert(Entry e) async {
-    final saved = e.copyWith(id: 'id-${_next++}');
+    final saved = e.copyWith(id: 'id-${_next++}', photos: _store(e.photos));
     rows.add(saved);
     return saved;
   }
 
   @override
-  Future<Entry> update(Entry e) async {
-    rows[rows.indexWhere((x) => x.id == e.id)] = e;
-    return e;
+  Future<Entry> update(Entry e, {List<Photo> removedPhotos = const []}) async {
+    final i = rows.indexWhere((x) => x.id == e.id);
+    // เหมือนของจริง: เพิ่มรูปใหม่ และลบเฉพาะรูปที่ระบุ
+    final kept = rows[i].photos.where((p) => !removedPhotos.contains(p));
+    return rows[i] = e.copyWith(photos: [...kept, ..._store(e.photos.where((p) => p.isNew))]);
   }
+
+  /// ไฟล์รูปที่ "อัปโหลด" แล้ว
+  final files = <String, Uint8List>{};
+  var _nextPhoto = 0;
+
+  List<Photo> _store(Iterable<Photo> photos) => [
+        for (final p in photos)
+          if (p.isNew) () {
+            final path = 'user/photo-${_nextPhoto++}.jpg';
+            files[path] = p.bytes!;
+            return Photo(path: path);
+          }() else p,
+      ];
+
+  @override
+  Future<Uint8List> photoBytes(String path) async => files[path]!;
 
   @override
   Future<void> softDelete(String id) async => deleted.add(id);

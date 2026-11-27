@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/dates.dart';
+import '../../data/photo_picker.dart';
 import '../../domain/entry.dart';
+import '../../domain/photo.dart';
 import '../diary/deleted_snack_bar.dart';
 import '../diary/diary_view_model.dart';
+import '../photos/photo_widgets.dart';
 import 'entry_editor_view_model.dart';
 
 /// เปิดหน้าแก้ไข คืน true ถ้าบันทึกหรือลบแล้ว
@@ -102,6 +105,9 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
   @override
   Widget build(BuildContext context) {
     ref.listen(entryEditorViewModelProvider(_args).select((s) => s.exit), (_, exit) => _onExit(exit));
+    ref.listen(entryEditorViewModelProvider(_args).select((s) => s.notice), (_, notice) {
+      if (notice != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
+    });
     final s = ref.watch(diaryViewModelProvider);
     final st = ref.watch(entryEditorViewModelProvider(_args));
     final e = st.entry, vm = _vm;
@@ -115,7 +121,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
             IconButton(tooltip: 'ลบ', icon: const Icon(Icons.delete_outline), onPressed: st.saving ? null : _delete),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(onPressed: st.saving ? null : _save, child: const Text('บันทึก')),
+            child: FilledButton(onPressed: st.saving || st.picking ? null : _save, child: const Text('บันทึก')),
           ),
         ],
       ),
@@ -192,6 +198,26 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
               border: OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 20),
+          Text('รูปภาพ', style: Theme.of(context).textTheme.titleSmall),
+          if (e.photos.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: PhotoStrip(e.photos, size: 88, onRemove: st.saving ? null : (i) => vm.removePhoto(e.photos[i])),
+            ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            for (final (source, icon, label) in const [
+              (PhotoSource.camera, Icons.photo_camera_outlined, 'ถ่ายรูป'),
+              (PhotoSource.gallery, Icons.photo_library_outlined, 'คลังรูป'),
+            ])
+              OutlinedButton.icon(
+                onPressed: st.saving || st.picking || e.photos.length >= maxPhotosPerEntry ? null : () => vm.addPhotos(source),
+                icon: Icon(icon),
+                label: Text(label),
+              ),
+            if (st.picking) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          ]),
           const SizedBox(height: 20),
           Text('ตัวเลข', style: Theme.of(context).textTheme.titleSmall),
           for (var i = 0; i < _metricCtrls.length; i++)

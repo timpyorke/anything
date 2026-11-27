@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
+import '../../domain/photo.dart';
 import '../entry_editor/entry_editor_page.dart';
+import '../photos/photo_widgets.dart';
 import '../settings/ai_settings_page.dart';
 import '../settings/local_model_page.dart';
 import '../settings/settings_page.dart';
@@ -61,27 +63,34 @@ Future<void> _offerSettings(NavigatorState nav, {required String title, required
 }
 
 class TurnView extends ConsumerWidget {
-  const TurnView({super.key, required this.text, required this.onApply});
-  final String text;
+  const TurnView({super.key, required this.request, required this.onApply});
+  final TurnRequest request;
   final VoidCallback onApply;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final turn = ref.watch(turnViewModelProvider(text));
-    final vm = ref.read(turnViewModelProvider(text).notifier);
+    final turn = ref.watch(turnViewModelProvider(request));
+    final vm = ref.read(turnViewModelProvider(request).notifier);
+    final photos = [for (final b in turn.photos) Photo(bytes: b)];
     final scheme = Theme.of(context).colorScheme;
     final r = turn.result;
     final selectable = r?.actions.where((a) => a.valid).toList() ?? const <ProposedAction>[];
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // รูปแนบมากับข้อความแรก
+      if (photos.isNotEmpty)
+        Align(
+          alignment: Alignment.centerRight,
+          child: Padding(padding: const EdgeInsets.only(left: 48, bottom: 8), child: PhotoStrip(photos, size: 80)),
+        ),
       for (final h in turn.history) ...[
-        _UserBubble(h.message),
+        if (h.message.isNotEmpty) _UserBubble(h.message),
         if (h.result != null)
           Card(
             margin: const EdgeInsets.only(right: 24, bottom: 8),
             child: Padding(padding: const EdgeInsets.all(12), child: _Reply(h.result!)),
           ),
       ],
-      _UserBubble(turn.text),
+      if (turn.text.isNotEmpty) _UserBubble(turn.text),
       if (turn.thinking)
         Padding(padding: const EdgeInsets.all(12), child: Row(children: [
           const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -109,7 +118,22 @@ class TurnView extends ConsumerWidget {
                   child: Text('ยังไม่มีอะไรถูกบันทึก', style: TextStyle(color: scheme.onSurfaceVariant)),
                 ),
               if (r.actions.isNotEmpty) const Divider(height: 20),
-              for (final (i, a) in r.actions.indexed) _ActionTile(action: a, locked: turn.applied || turn.busy, vm: vm, index: i),
+              for (final (i, a) in r.actions.indexed)
+                _ActionTile(
+                  action: a,
+                  photos: [for (final p in a.photos) photos[p]],
+                  locked: turn.applied || turn.busy,
+                  vm: vm,
+                  index: i,
+                ),
+              if (!turn.applied && r.actions.isNotEmpty && turn.unattachedPhotos > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'รูป ${turn.unattachedPhotos} รูปไม่ได้แนบกับรายการที่เลือก จะไม่ถูกเก็บ',
+                    style: TextStyle(fontSize: 13, color: scheme.error),
+                  ),
+                ),
               if (selectable.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Align(
@@ -216,8 +240,9 @@ class _AnswerBoxState extends State<_AnswerBox> {
 }
 
 class _ActionTile extends ConsumerWidget {
-  const _ActionTile({required this.action, required this.locked, required this.vm, required this.index});
+  const _ActionTile({required this.action, required this.photos, required this.locked, required this.vm, required this.index});
   final ProposedAction action;
+  final List<Photo> photos;
   final bool locked;
   final TurnViewModel vm;
   final int index;
@@ -242,6 +267,8 @@ class _ActionTile extends ConsumerWidget {
               Text(a.summary, style: TextStyle(fontWeight: FontWeight.w500, color: a.valid ? null : scheme.onSurfaceVariant)),
               if (a.detail.isNotEmpty)
                 Text(a.detail, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant), maxLines: 6, overflow: TextOverflow.ellipsis),
+              if (photos.isNotEmpty)
+                Padding(padding: const EdgeInsets.only(top: 6), child: PhotoStrip(photos, size: 44)),
               for (final err in a.errors) Text('⚠ $err', style: TextStyle(fontSize: 13, color: scheme.error)),
             ]),
           ),
@@ -252,7 +279,7 @@ class _ActionTile extends ConsumerWidget {
             icon: const Icon(Icons.edit_outlined, size: 20),
             onPressed: () async {
               final saved = await openEditor(context, entry: a.entry, draft: true);
-              if (saved) vm.toggle(index, false);
+              if (saved) vm.markSaved(index);
             },
           ),
       ]),

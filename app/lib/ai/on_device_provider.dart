@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
+import '../domain/photo.dart';
 import 'llm_provider.dart';
 
 /// Gemma 4 E2B รันบนมือถือผ่าน flutter_edge_ai (LiteRT-LM)
@@ -35,8 +36,9 @@ class OnDeviceProvider implements LlmProvider {
     await install(); // ตั้งเป็น active model หลังเปิดแอปใหม่ (ไม่ดาวน์โหลดซ้ำ)
     return FlutterEdgeAi.getActiveModel(
       defaults: variant.runtimeDefaults,
-      supportImage: false,
-      // เปิดเสมอแม้ใช้แค่ข้อความ: ตั้งค่าต่างกันจะโหลดโมเดล 2.6 GB ใหม่ทุกครั้งที่สลับ
+      // เปิดรับรูปและเสียงเสมอแม้ใช้แค่ข้อความ: ตั้งค่าต่างกันจะโหลดโมเดล 2.6 GB ใหม่ทุกครั้งที่สลับ
+      supportImage: true,
+      maxNumImages: maxPhotosPerMessage,
       supportAudio: true,
       // GPU ของ Gemma 4 ที่ใช้ half precision อาจคัดลอกตัวเลข/วันที่ผิด (LiteRT-LM#3012)
       // iOS: ใช้ GPU แบบ float32 · Android: ใช้ CPU (float32 บน Adreno 8xx ยังมีปัญหา)
@@ -86,14 +88,25 @@ class OnDeviceProvider implements LlmProvider {
       });
 
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) {
+  Future<String> generateJson({
+    required String system,
+    required String user,
+    List<Uint8List> images = const [],
+    Future<void>? cancel,
+  }) {
     // จำไว้ตั้งแต่ตอนเข้าคิว: ถูกยกเลิกระหว่างรอคิวหรือโหลดโมเดลก็ไม่ต้องเริ่มคิด
     var cancelled = false;
     cancel?.then((_) => cancelled = true);
-    return _exclusive(() => _generateJson(system, user, cancel, () => cancelled));
+    return _exclusive(() => _generateJson(system, user, images, cancel, () => cancelled));
   }
 
-  Future<String> _generateJson(String system, String user, Future<void>? cancel, bool Function() cancelled) async {
+  Future<String> _generateJson(
+    String system,
+    String user,
+    List<Uint8List> images,
+    Future<void>? cancel,
+    bool Function() cancelled,
+  ) async {
     if (cancelled()) throw LlmCancelled();
     await _requireInstalled();
     final model = await _model();
@@ -104,10 +117,13 @@ class OnDeviceProvider implements LlmProvider {
       maxOutputTokens: 1024,
       temperature: _temperature,
       responseFormat: enforce ? format : null,
+      enableVisionModality: images.isNotEmpty,
     );
     var done = false;
     try {
-      await session.addQueryChunk(Message(text: user, isUser: true));
+      await session.addQueryChunk(images.isEmpty
+          ? Message(text: user, isUser: true)
+          : Message.withImages(text: user, imageBytes: images, isUser: true));
       if (cancelled()) throw LlmCancelled();
       final response = session.getResponse();
       // หยุดการคิดในเครื่องจริงๆ คิวจะได้ว่างให้คำขอถัดไป
@@ -116,7 +132,7 @@ class OnDeviceProvider implements LlmProvider {
       }).ignore();
       return await response;
     } on ContextLimitException {
-      throw LlmException('ข้อความยาวเกินกว่าที่โมเดลบนเครื่องรับได้ — แบ่งเป็นหลายครั้ง');
+      throw LlmException('ข้อความหรือรูปมากเกินกว่าที่โมเดลบนเครื่องรับได้ — แบ่งเป็นหลายครั้ง');
     } on IncompleteStructuredOutputException catch (e) {
       return e.partialText;
     } on NonConformingStructuredOutputException catch (e) {

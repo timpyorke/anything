@@ -5,6 +5,7 @@ import '../../core/utils/markdown.dart' as md;
 import '../../domain/category.dart';
 import '../../domain/entry.dart';
 import '../../domain/metric.dart';
+import '../../domain/photo.dart';
 import '../../domain/repositories/diary_repository.dart';
 import 'diary_state.dart';
 
@@ -40,10 +41,11 @@ class DiaryViewModel extends Notifier<DiaryState> {
     }
   }
 
-  Future<Entry> save(Entry e) async {
+  /// [removedPhotos] = รูปเดิมที่ผู้ใช้เอาออก (รูปใหม่อยู่ใน e.photos)
+  Future<Entry> save(Entry e, {List<Photo> removedPhotos = const []}) async {
     final errors = state.validate(e);
     if (errors.isNotEmpty) throw ArgumentError(errors.join('\n'));
-    final saved = e.id == null ? await _repo.insert(e) : await _repo.update(e);
+    final saved = e.id == null ? await _repo.insert(e) : await _repo.update(e, removedPhotos: removedPhotos);
     state = state.copyWith(
       entries: [for (final x in state.entries) if (x.id != saved.id) x, saved]..sort((a, b) => b.date.compareTo(a.date)),
     );
@@ -60,8 +62,8 @@ class DiaryViewModel extends Notifier<DiaryState> {
     await load();
   }
 
-  Future<void> toggleCheck(Entry e, int index, bool done) =>
-      save(e.copyWith(body: md.toggleCheck(e.body, index, done)));
+  Future<void> toggleCheck(Entry e, int index, bool done, {List<Photo> newPhotos = const []}) =>
+      save(e.copyWith(body: md.toggleCheck(e.body, index, done), photos: [...e.photos, ...newPhotos]));
 
   Future<void> addCategory(EntryCategory c) async {
     await _repo.addCategory(c);

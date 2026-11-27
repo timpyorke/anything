@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -10,14 +11,20 @@ import 'recorder.dart';
 
 part 'turn_view_model.freezed.dart';
 
+/// สิ่งที่ผู้ใช้ส่งมาเริ่มเรื่อง: ข้อความ และรูปที่แนบ (อย่างน้อยหนึ่งอย่าง)
+typedef TurnRequest = ({String text, List<Uint8List> photos});
+
 /// การคุยกับ AI 1 เรื่อง: ข้อความผู้ใช้ → ผลที่ AI เสนอ → ผู้ใช้ตอบเพิ่มได้ → เลือก/ยืนยัน
-/// [text] คือข้อความล่าสุด รอบก่อนหน้าอยู่ใน [history]
+/// [text] คือข้อความล่าสุด รอบก่อนหน้าอยู่ใน [history] ส่วน [photos] ใช้ร่วมกันทุกรอบ
 @freezed
 abstract class TurnState with _$TurnState {
   const TurnState._();
 
   const factory TurnState({
     required String text,
+    @Default(<Uint8List>[]) List<Uint8List> photos,
+    /// รูปที่บันทึกไปแล้วผ่านหน้าแก้ไข
+    @Default(<int>{}) Set<int> savedPhotos,
     @Default(<Exchange>[]) List<Exchange> history,
     AiResult? result,
     String? error,
@@ -27,15 +34,24 @@ abstract class TurnState with _$TurnState {
 
   /// กำลังรอคำตอบจาก AI (ไม่ใช่กำลังบันทึก)
   bool get thinking => busy && result == null;
+
+  /// จำนวนรูปที่จะไม่ถูกเก็บถ้ากดบันทึกตอนนี้
+  int get unattachedPhotos {
+    final kept = {
+      ...savedPhotos,
+      for (final a in result?.actions ?? const <ProposedAction>[]) if (a.valid && a.selected) ...a.photos,
+    };
+    return photos.length - kept.length;
+  }
 }
 
-/// 1 provider ต่อ 1 ข้อความแรก (autoDispose: ปิด sheet แล้วทิ้ง)
+/// 1 provider ต่อ 1 เรื่องที่ส่ง (autoDispose: ปิด sheet แล้วทิ้ง)
 final turnViewModelProvider =
-    NotifierProvider.autoDispose.family<TurnViewModel, TurnState, String>(TurnViewModel.new);
+    NotifierProvider.autoDispose.family<TurnViewModel, TurnState, TurnRequest>(TurnViewModel.new);
 
 class TurnViewModel extends Notifier<TurnState> {
-  TurnViewModel(this.text);
-  final String text;
+  TurnViewModel(this.request);
+  final TurnRequest request;
 
   /// จบเมื่อผู้ใช้ยกเลิกรอบที่กำลังคิดอยู่
   Completer<void>? _cancel;
@@ -44,14 +60,14 @@ class TurnViewModel extends Notifier<TurnState> {
   TurnState build() {
     ref.onDispose(() => _cancel?.complete());
     Future.microtask(_run);
-    return TurnState(text: text);
+    return TurnState(text: request.text, photos: request.photos);
   }
 
   // ผู้ใช้ปิด sheet ได้ (provider ถูกทิ้ง) จึงต้องอ่าน notifier ที่ใช้ไว้ก่อน await และเช็ก ref.mounted
   // ก่อนแตะ state — ปิดตอนคิดอยู่ = ยกเลิกคำขอ ส่วนงานบันทึกที่สั่งไว้ยังทำต่อจนจบ
   Future<void> _run() async {
     // อ่าน state ก่อน await (หลังจากนั้น provider อาจถูกทิ้งแล้ว)
-    final message = state.text, history = state.history, input = _input;
+    final message = state.text, history = state.history, photos = state.photos, input = _input;
     final diary = ref.read(diaryViewModelProvider.notifier);
     final cancel = _cancel = Completer<void>();
     final provider = await ref.read(aiSettingsProvider.notifier).resolveProvider();
@@ -62,7 +78,7 @@ class TurnViewModel extends Notifier<TurnState> {
     }
     try {
       final result = await Recorder(ref.read(diaryViewModelProvider))
-          .run(provider, message, history: history, cancel: cancel.future);
+          .run(provider, message, history: history, photos: photos, cancel: cancel.future);
       if (cancel.isCompleted) return;
       state = state.copyWith(result: result, busy: false);
       if (result.actions.isEmpty) await _log(diary, provider, input, result.raw, 'rejected');
@@ -78,12 +94,29 @@ class TurnViewModel extends Notifier<TurnState> {
   Future<void> answer(String message) async {
     final m = message.trim();
     if (m.isEmpty || state.busy || state.applied) return;
-    state = TurnState(text: m, history: [...state.history, (message: state.text, result: state.result)]);
+    state = TurnState(
+      text: m,
+      photos: state.photos,
+      savedPhotos: state.savedPhotos,
+      history: [...state.history, (message: state.text, result: state.result)],
+    );
     await _run();
   }
 
-  /// ข้อความของผู้ใช้ทุกรอบ สำหรับเก็บใน log
-  String get _input => [for (final h in state.history) h.message, state.text].join('\n');
+  /// ข้อความของผู้ใช้ทุกรอบ สำหรับเก็บใน log (เก็บแค่จำนวนรูป ไม่เก็บตัวรูป)
+  String get _input => [
+        if (state.photos.isNotEmpty) '[แนบรูป ${state.photos.length} รูป]',
+        for (final h in state.history) h.message,
+        state.text,
+      ].join('\n');
+
+  /// ผู้ใช้แก้และบันทึกรายการนี้จากหน้าแก้ไขแล้ว — เอาออกจากชุดที่จะบันทึกอีก
+  void markSaved(int index) {
+    final r = state.result;
+    if (r == null) return;
+    state = state.copyWith(savedPhotos: {...state.savedPhotos, ...r.actions[index].photos});
+    toggle(index, false);
+  }
 
   void toggle(int index, bool selected) {
     final r = state.result;

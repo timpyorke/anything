@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:http/http.dart' as http;
 
+import '../domain/photo.dart';
 import 'llm_http.dart';
 import 'llm_provider.dart';
 
@@ -53,7 +57,12 @@ class OpenAiProvider implements LlmProvider {
   }
 
   @override
-  Future<String> generateJson({required String system, required String user, Future<void>? cancel}) async {
+  Future<String> generateJson({
+    required String system,
+    required String user,
+    List<Uint8List> images = const [],
+    Future<void>? cancel,
+  }) async {
     final (status, json) = await llmRequest(
       _client,
       kind.label,
@@ -63,7 +72,19 @@ class OpenAiProvider implements LlmProvider {
         'model': model,
         'messages': [
           {'role': 'system', 'content': system},
-          {'role': 'user', 'content': user},
+          {
+            'role': 'user',
+            'content': images.isEmpty
+                ? user
+                : [
+                    {'type': 'text', 'text': user},
+                    for (final image in images)
+                      {
+                        'type': 'image_url',
+                        'image_url': {'url': 'data:${imageMime(image)};base64,${base64Encode(image)}'},
+                      },
+                  ],
+          },
         ],
         // OpenRouter มีโมเดลที่ไม่รองรับ JSON mode จึงอาศัยคำสั่งในพรอมต์แทน
         if (kind == AiProviderKind.openAi) 'response_format': {'type': 'json_object'},

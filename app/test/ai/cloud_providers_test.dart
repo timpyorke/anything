@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../support/photos.dart';
+
 http.Response _json(Object body, [int status = 200]) => http.Response.bytes(utf8.encode(jsonEncode(body)), status);
 
 Map<String, dynamic> _body(http.Request r) => jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
@@ -43,6 +45,18 @@ void main() {
       expect(body['messages'], [{'role': 'user', 'content': 'ทัก'}]);
       expect(body['fallbacks'], 'default');
       expect(body.keys, isNot(contains('temperature')));
+    });
+
+    test('sends photos as image blocks before the text', () async {
+      late http.Request sent;
+      await AnthropicProvider(apiKey: 'k', model: 'claude-opus-5-5', client: MockClient((r) async {
+        sent = r;
+        return _json(reply('end_turn'));
+      })).generateJson(system: 's', user: 'ดูรูป', images: [png()]);
+      expect((_body(sent)['messages'] as List).single['content'], [
+        {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': base64Encode(png())}},
+        {'type': 'text', 'text': 'ดูรูป'},
+      ]);
     });
 
     test('does not ask for fallbacks on a model without them', () async {
@@ -110,6 +124,18 @@ void main() {
       }));
       expect(sent.url.toString(), 'https://openrouter.ai/api/v1/chat/completions');
       expect(_body(sent).keys, isNot(contains('response_format')));
+    });
+
+    test('photos are sent as data URLs after the text', () async {
+      late http.Request sent;
+      await OpenAiProvider(kind: AiProviderKind.openRouter, apiKey: 'k', model: 'm', client: MockClient((r) async {
+        sent = r;
+        return _json(reply('stop'));
+      })).generateJson(system: 's', user: 'ดูรูป', images: [png()]);
+      expect((_body(sent)['messages'] as List).last['content'], [
+        {'type': 'text', 'text': 'ดูรูป'},
+        {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,${base64Encode(png())}'}},
+      ]);
     });
 
     test('failures are explained', () async {

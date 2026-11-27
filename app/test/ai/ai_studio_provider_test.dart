@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import '../support/photos.dart';
+
 void main() {
   test('sends the prompt with the key and returns the reply text', () async {
     late http.Request sent;
@@ -27,6 +29,20 @@ void main() {
     expect(sent.headers['x-goog-api-key'], 'k');
     expect(sent.headers['content-type'], startsWith('application/json'));
     expect(utf8.decode(sent.bodyBytes), contains('ทัก'));
+  });
+
+  test('sends photos inline before the text', () async {
+    late http.Request sent;
+    final client = MockClient((request) async {
+      sent = request;
+      return http.Response(jsonEncode({'candidates': [{'content': {'parts': [{'text': '{}'}]}}]}), 200);
+    });
+    await AiStudioProvider(apiKey: 'k', model: 'gemini-test', client: client).generateJson(system: 's', user: 'u', images: [png()]);
+    final body = jsonDecode(utf8.decode(sent.bodyBytes)) as Map<String, dynamic>;
+    expect((body['contents'] as List).single['parts'], [
+      {'inlineData': {'mimeType': 'image/png', 'data': base64Encode(png())}},
+      {'text': 'u'},
+    ]);
   });
 
   test('cancelling aborts the request', () async {
