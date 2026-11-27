@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -125,124 +127,138 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     // TextFieldTapRegion: แตะปุ่มในกล่องไม่นับเป็น "แตะข้างนอก" คีย์บอร์ดจึงไม่หุบ
     return TextFieldTapRegion(
       child: SizedBox(
-        width: MediaQuery.sizeOf(context).width - 32,
+        width: math.min(MediaQuery.sizeOf(context).width - 24, 640),
         child: Material(
-          elevation: 3,
+          elevation: 6,
+          shadowColor: Colors.black.withValues(alpha: 0.35),
           color: scheme.surfaceContainerLow,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(30),
             side: BorderSide(color: scheme.outlineVariant),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: v.listening
-                  ? _listeningContent(context, v.seconds)
-                  : v.transcribing
-                      ? _transcribingContent(context)
-                      : _inputContent(context, draft),
-            ),
+            padding: const EdgeInsets.all(6),
+            child: v.listening
+                ? _listeningContent(context, v.seconds)
+                : v.transcribing
+                    ? _transcribingContent(context)
+                    : _inputContent(context, draft),
           ),
         ),
       ),
     );
   }
 
-  List<Widget> _inputContent(BuildContext context, PhotoDraftState draft) {
-    final style = Theme.of(context).textTheme.bodyLarge;
-    final full = draft.photos.length >= maxPhotosPerMessage;
-    final canPick = !draft.picking && !full;
-    return [
-      if (draft.photos.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-          child: PhotoStrip([for (final b in draft.photos) Photo(bytes: b)], onRemove: _photos.remove),
-        ),
-      TextField(
-        controller: _text,
-        focusNode: _focus,
-        minLines: 1,
-        maxLines: 5,
-        style: style,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
-        onTapOutside: (_) => _focus.unfocus(),
-        decoration: InputDecoration(
-          hintText: 'พิมพ์เล่าอะไรก็ได้…',
-          hintStyle: style?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          // ปิดพื้นและเส้นขอบจากธีม ให้ช่องพิมพ์กลืนไปกับกล่อง
-          filled: false,
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          isDense: true,
-          contentPadding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        ),
+  /// ช่องว่าง = แถวเดียว (แนบรูป · ช่องพิมพ์ · พูด) กินที่น้อยสุด
+  /// มีข้อความแล้ว = ช่องพิมพ์กว้างเต็มกล่อง ปุ่มย้ายลงแถวล่าง · รูปที่แนบขึ้นเป็นแถวด้านบน
+  Widget _inputContent(BuildContext context, PhotoDraftState draft) {
+    final theme = Theme.of(context);
+    final canPick = !draft.picking && draft.photos.length < maxPhotosPerMessage;
+    final attach = Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(
+        icon: const Icon(Icons.photo_camera_outlined),
+        tooltip: 'กล้อง',
+        color: theme.colorScheme.onSurfaceVariant,
+        onPressed: canPick ? () => _addPhotos(PhotoSource.camera) : null,
       ),
-      Row(children: [
-        IconButton(
-          icon: const Icon(Icons.photo_camera_outlined),
-          tooltip: 'กล้อง',
-          onPressed: canPick ? () => _addPhotos(PhotoSource.camera) : null,
-        ),
-        IconButton(
-          icon: const Icon(Icons.photo_library_outlined),
-          tooltip: 'คลังรูป',
-          onPressed: canPick ? () => _addPhotos(PhotoSource.gallery) : null,
-        ),
-        if (draft.picking) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-        const Spacer(),
+      IconButton(
+        icon: const Icon(Icons.photo_library_outlined),
+        tooltip: 'คลังรูป',
+        color: theme.colorScheme.onSurfaceVariant,
+        onPressed: canPick ? () => _addPhotos(PhotoSource.gallery) : null,
+      ),
+    ]);
+    final field = TextField(
+      controller: _text,
+      focusNode: _focus,
+      minLines: 1,
+      maxLines: 5,
+      style: theme.textTheme.bodyLarge,
+      keyboardType: TextInputType.multiline,
+      textInputAction: TextInputAction.newline,
+      onTapOutside: (_) => _focus.unfocus(),
+      decoration: const InputDecoration(
+        hintText: 'เล่าอะไรก็ได้…',
+        hintMaxLines: 1,
+        // ปิดพื้นและเส้นขอบจากธีม ให้ช่องพิมพ์กลืนไปกับกล่อง
+        filled: false,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      ),
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (draft.photos.isNotEmpty || draft.picking)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+            child: Row(children: [
+              Flexible(child: PhotoStrip([for (final b in draft.photos) Photo(bytes: b)], onRemove: _photos.remove)),
+              if (draft.picking)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+            ]),
+          ),
         ValueListenableBuilder(
           valueListenable: _text,
           builder: (context, value, _) {
             final empty = value.text.trim().isEmpty;
-            final send = _primaryButton(context,
-                icon: Icons.arrow_upward, tooltip: 'ส่ง', onPressed: draft.picking ? null : _submitText);
-            if (!empty) return send;
-            if (draft.photos.isEmpty) {
-              return _primaryButton(context, icon: Icons.mic, tooltip: 'พูด', onPressed: _startVoice);
-            }
-            // มีแต่รูป: ส่งได้เลย หรือจะพูดเล่าประกอบก็ได้
-            return Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: const Icon(Icons.mic), tooltip: 'พูด', onPressed: _startVoice),
-              send,
+            final expanded = value.text.isNotEmpty;
+            final send = _primaryButton(
+                icon: Icons.arrow_upward_rounded, tooltip: 'ส่ง', onPressed: draft.picking ? null : _submitText);
+            final Widget actions = !empty
+                ? send
+                : draft.photos.isEmpty
+                    ? _primaryButton(icon: Icons.mic_rounded, tooltip: 'พูด', onPressed: _startVoice)
+                    // มีแต่รูป: ส่งได้เลย หรือจะพูดเล่าประกอบก็ได้
+                    : Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(icon: const Icon(Icons.mic_rounded), tooltip: 'พูด', onPressed: _startVoice),
+                        send,
+                      ]);
+            // ช่องพิมพ์ต้องอยู่ตำแหน่งเดิมใน tree ทั้งสองแบบ ไม่งั้นจะเสียโฟกัสตอนพิมพ์ตัวแรก
+            // ปุ่มสองข้างจึงห่อด้วย SizedBox เสมอ (ชนิด widget ในแถวไม่เปลี่ยน)
+            return Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                SizedBox(child: expanded ? null : attach),
+                Expanded(child: field),
+                SizedBox(child: expanded ? null : actions),
+              ]),
+              if (expanded) Row(children: [attach, const Spacer(), actions]),
             ]);
           },
         ),
-      ]),
-    ];
+      ],
+    );
   }
 
-  List<Widget> _listeningContent(BuildContext context, int seconds) {
+  Widget _listeningContent(BuildContext context, int seconds) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final left = maxVoiceSeconds - seconds;
-    final color = left <= 5 ? scheme.error : scheme.onSurface; // 5 วินาทีสุดท้ายเตือนด้วยสีแดง
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('กำลังอัดเสียง… พูดได้เลย', style: theme.textTheme.bodyLarge),
-              Text(
-                'เหลือ $left วินาที · ครบแล้วส่งให้เอง',
-                style: theme.textTheme.bodySmall?.copyWith(color: left <= 5 ? scheme.error : null),
-              ),
-            ]),
+    final color = left <= 5 ? scheme.error : scheme.primary; // 5 วินาทีสุดท้ายเตือนด้วยสีแดง
+    return Row(children: [
+      IconButton(icon: const Icon(Icons.close_rounded), tooltip: 'ยกเลิก', onPressed: _vm.discard),
+      const SizedBox(width: 4),
+      Expanded(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('กำลังอัดเสียง…', style: theme.textTheme.titleSmall),
+          Text(
+            'เหลือ $left วินาที · ครบแล้วส่งให้เอง',
+            style: theme.textTheme.bodySmall?.copyWith(color: left <= 5 ? scheme.error : null),
           ),
-          const SizedBox(width: 12),
-          _countdownRing(context, seconds: seconds, color: color),
         ]),
       ),
-      Row(children: [
-        IconButton(icon: const Icon(Icons.close), tooltip: 'ยกเลิก', onPressed: _vm.discard),
-        const Spacer(),
-        _primaryButton(context, icon: Icons.arrow_upward, tooltip: 'หยุดและส่ง', onPressed: _end),
-      ]),
-    ];
+      const SizedBox(width: 8),
+      _countdownRing(context, seconds: seconds, color: color),
+      const SizedBox(width: 8),
+      _primaryButton(icon: Icons.arrow_upward_rounded, tooltip: 'หยุดและส่ง', onPressed: _end),
+    ]);
   }
 
   /// วงนับถอยหลัง: ตัวเลขคือวินาทีที่เหลือ วงค่อยๆ หมดไปจนครบเวลา
@@ -250,7 +266,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     final theme = Theme.of(context);
     final left = maxVoiceSeconds - seconds;
     return SizedBox.square(
-      dimension: 48,
+      dimension: 40,
       child: Stack(fit: StackFit.expand, children: [
         // ตัวจับเวลาเดินทีละวินาที จึงไล่ค่าไปถึงวินาทีถัดไปให้วงเคลื่อนต่อเนื่อง
         TweenAnimationBuilder<double>(
@@ -258,52 +274,35 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
           duration: const Duration(seconds: 1),
           builder: (context, remaining, _) => CircularProgressIndicator(
             value: remaining,
-            strokeWidth: 4,
+            strokeWidth: 3,
             color: color,
             backgroundColor: theme.colorScheme.surfaceContainerHighest,
           ),
         ),
-        Center(child: Text('$left', style: theme.textTheme.titleMedium?.copyWith(color: color))),
+        // ย่อแทนการล้นวงเมื่อผู้ใช้ขยายตัวอักษร
+        Padding(
+          padding: const EdgeInsets.all(7),
+          child: FittedBox(fit: BoxFit.scaleDown, child: Text('$left', style: theme.textTheme.titleSmall?.copyWith(color: color))),
+        ),
       ]),
     );
   }
 
-  List<Widget> _transcribingContent(BuildContext context) {
+  Widget _transcribingContent(BuildContext context) {
     final theme = Theme.of(context);
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: Row(children: [
-          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'กำลังถอดเสียงในเครื่อง…',
-              style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-        ]),
+    return Row(children: [
+      IconButton(icon: const Icon(Icons.close_rounded), tooltip: 'ยกเลิก', onPressed: _vm.discard),
+      const SizedBox(width: 4),
+      Expanded(child: Text('กำลังถอดเสียงในเครื่อง…', style: theme.textTheme.titleSmall)),
+      const Padding(
+        padding: EdgeInsets.all(14),
+        child: SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
       ),
-      Row(children: [
-        IconButton(icon: const Icon(Icons.close), tooltip: 'ยกเลิก', onPressed: _vm.discard),
-      ]),
-    ];
+    ]);
   }
 
-  Widget _primaryButton(
-    BuildContext context, {
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback? onPressed,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    return IconButton.filled(
-      icon: Icon(icon),
-      tooltip: tooltip,
-      onPressed: onPressed,
-      style: IconButton.styleFrom(backgroundColor: scheme.onSurface, foregroundColor: scheme.surface),
-    );
-  }
+  Widget _primaryButton({required IconData icon, required String tooltip, required VoidCallback? onPressed}) =>
+      IconButton.filled(icon: Icon(icon), tooltip: tooltip, onPressed: onPressed);
 }
 
 class _ResultSheet extends ConsumerWidget {
@@ -327,6 +326,7 @@ class _ResultSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final thinking = ref.watch(turnViewModelProvider(request).select((t) => t.thinking));
+    final theme = Theme.of(context);
     // ระหว่าง AI คิด แตะข้างนอก/กดย้อนกลับไม่ปิด ต้องกด "ยกเลิก"
     return PopScope(
       canPop: !thinking,
@@ -335,11 +335,35 @@ class _ResultSheet extends ConsumerWidget {
         padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
         child: SafeArea(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.75),
-            child: SingleChildScrollView(
-              reverse: true, // เห็นข้อความล่าสุดและช่องตอบเสมอ
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-              child: TurnView(request: request, onApply: () => _apply(context, ref)),
+            constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 8, 4),
+                  child: Row(children: [
+                    Icon(Icons.auto_awesome_rounded, size: 18, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('ผู้ช่วยบันทึก', style: theme.textTheme.titleMedium)),
+                    // ระหว่างคิดมีปุ่ม "ยกเลิก" อยู่แล้ว ปุ่มปิดจึงโผล่หลังได้คำตอบ
+                    Visibility.maintain(
+                      visible: !thinking,
+                      child: IconButton(
+                        tooltip: 'ปิด',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ]),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    reverse: true, // เห็นข้อความล่าสุดและช่องตอบเสมอ
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: TurnView(request: request, onApply: () => _apply(context, ref)),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

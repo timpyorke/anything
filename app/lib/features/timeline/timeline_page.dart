@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_theme.dart';
 import '../../core/utils/dates.dart';
+import '../../core/widgets/category_dot.dart';
 import '../../core/widgets/empty_state.dart';
 import '../assistant/anything_button.dart';
+import '../diary/diary_state.dart';
 import '../diary/diary_view_model.dart';
 import '../overview/overview_page.dart';
 import '../search/search_page.dart';
@@ -21,27 +24,40 @@ class TimelinePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(diaryViewModelProvider);
     final f = ref.watch(timelineFilterProvider);
-    final fvm = ref.read(timelineFilterProvider.notifier);
     final view = ref.watch(timelineViewProvider);
+    final diary = ref.read(diaryViewModelProvider.notifier);
     final now = view.now;
+    final theme = Theme.of(context);
+    // รีเฟรชพังตอนที่มีข้อมูลเดิมอยู่: หน้าไม่เปลี่ยน จึงต้องบอกว่าที่เห็นอาจไม่ใช่ล่าสุด
+    ref.listen(diaryViewModelProvider.select((s) => s.error), (_, error) {
+      if (error == null || ref.read(diaryViewModelProvider).entries.isEmpty) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('โหลดข้อมูลล่าสุดไม่สำเร็จ'),
+        persist: false,
+        action: SnackBarAction(label: 'ลองใหม่', onPressed: diary.load),
+      ));
+    });
     void push(Widget page) =>
         Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    // ที่ว่างท้ายรายการ ให้เลื่อนพ้นกล่องพิมพ์ที่ลอยอยู่
+    final composerSpace = 112 + MediaQuery.paddingOf(context).bottom;
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: Insets.page,
         // จอแคบ: ย่อชื่อให้พอดีแทนการถูกตัดท้าย
-        title: const FittedBox(
+        title: FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text('Anything ~ diaries'),
+          child: Text('Anything ~ diaries', style: theme.textTheme.headlineSmall),
         ),
         actions: [
           IconButton(
             tooltip: 'ค้นหา',
-            icon: const Icon(Icons.search),
+            icon: const Icon(Icons.search_rounded),
             onPressed: () => push(const SearchPage()),
           ),
           IconButton(
             tooltip: 'ภาพรวม',
-            icon: const Icon(Icons.calendar_month_outlined),
+            icon: const Icon(Icons.insights_rounded),
             onPressed: () =>
                 push(OverviewPage(openTimeline: () => Navigator.pop(context))),
           ),
@@ -50,102 +66,151 @@ class TimelinePage extends ConsumerWidget {
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => push(const SettingsPage()),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: const AnythingButton(),
-      body: RefreshIndicator(
-        onRefresh: ref.read(diaryViewModelProvider.notifier).load,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            if (f.active)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
-                  child: Row(
-                    children: [
-                      if (f.day != null)
-                        Text(
-                          '${fmtDate(f.day!)} · ',
-                          style: Theme.of(context).textTheme.bodySmall,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: diary.load,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                if (f.active)
+                  SliverToBoxAdapter(
+                    child: _FilterBar(
+                      filter: f,
+                      state: s,
+                      count: view.count,
+                      onClear: ref.read(timelineFilterProvider.notifier).clear,
+                    ),
+                  ),
+                if (s.loading && s.entries.isEmpty)
+                  const SliverFillRemaining(
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (s.error != null && s.entries.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: Icons.cloud_off_rounded,
+                      text: 'โหลดข้อมูลไม่สำเร็จ',
+                      detail: s.error,
+                      action: FilledButton.icon(
+                        onPressed: diary.load,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('ลองใหม่'),
+                      ),
+                    ),
+                  )
+                else if (f.active && view.count == 0)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: Icons.filter_alt_off_rounded,
+                      text: 'ไม่พบรายการที่ตรงกับตัวกรอง',
+                    ),
+                  )
+                else ...[
+                  // กรองอยู่: เส้นเวลาเดียว ไม่ย่ออนาคต เพื่อไม่ให้วันที่เลือกถูกซ่อน
+                  if (f.active)
+                    for (final MapEntry(key: y, value: items)
+                        in view.allByYear.entries)
+                      EntrySection(title: 'พ.ศ. ${be(y)}', items: items, now: now)
+                  else ...[
+                    if (view.upcoming.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: UpcomingCard(
+                          view: view,
+                          onShowAll: () => push(const UpcomingPage()),
                         ),
-                      Text(
-                        '${view.count} รายการ',
-                        style: Theme.of(context).textTheme.bodySmall,
                       ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: fvm.clear,
-                        child: const Text('ล้างตัวกรอง'),
+                    EntrySection(
+                      title: 'วันนี้',
+                      subtitle: '${thWeekdays[now.weekday - 1]} ${fmtDay(now)}',
+                      items: view.current,
+                      now: now,
+                      impliedBadge: 'วันนี้',
+                      emptyText: 'ยังไม่ได้บันทึก พิมพ์หรือกดไมค์เล่าให้ AI ฟังได้เลย',
+                    ),
+                    for (final MapEntry(key: y, value: items)
+                        in view.pastByYear.entries)
+                      EntrySection(
+                        title: y == now.year ? 'ก่อนหน้านี้' : 'พ.ศ. ${be(y)}',
+                        subtitle: y == now.year ? 'พ.ศ. ${be(y)}' : null,
+                        items: items,
+                        now: now,
                       ),
+                  ],
+                  SliverToBoxAdapter(child: SizedBox(height: composerSpace)),
+                ],
+              ],
+            ),
+          ),
+          // ไล่พื้นจางด้านล่าง เนื้อหาที่เลื่อนผ่านใต้กล่องพิมพ์จะไม่แย่งสายตา
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: composerSpace,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      theme.scaffoldBackgroundColor.withValues(alpha: 0),
+                      theme.scaffoldBackgroundColor,
                     ],
+                    stops: const [0, 0.75],
                   ),
                 ),
               ),
-            if (s.loading && s.entries.isEmpty)
-              const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (s.error != null && s.entries.isEmpty)
-              SliverFillRemaining(
-                child: EmptyState(
-                  icon: Icons.cloud_off,
-                  text: 'โหลดข้อมูลไม่สำเร็จ\n${s.error}',
-                  action: FilledButton(
-                    onPressed: ref.read(diaryViewModelProvider.notifier).load,
-                    child: const Text('ลองใหม่'),
-                  ),
-                ),
-              )
-            else if (f.active && view.count == 0)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: EmptyState(
-                  icon: Icons.filter_alt_off,
-                  text: 'ไม่พบรายการที่ตรงกับตัวกรอง',
-                ),
-              )
-            else ...[
-              // กรองอยู่: เส้นเวลาเดียว ไม่ย่ออนาคต เพื่อไม่ให้วันที่เลือกถูกซ่อน
-              if (f.active)
-                for (final MapEntry(key: y, value: items)
-                    in view.allByYear.entries)
-                  EntrySection(
-                    title: '$y',
-                    subtitle: 'พ.ศ. ${be(y)}',
-                    items: items,
-                    now: now,
-                  )
-              else ...[
-                if (view.upcoming.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: UpcomingCard(
-                      view: view,
-                      onShowAll: () => push(const UpcomingPage()),
-                    ),
-                  ),
-                EntrySection(
-                  title: 'วันนี้',
-                  subtitle: '${thWeekdays[now.weekday - 1]} ${fmtDay(now)}',
-                  items: view.current,
-                  now: now,
-                  impliedBadge: 'วันนี้',
-                  emptyText:
-                      'ยังไม่ได้บันทึก พิมพ์หรือกดไมค์เล่าให้ AI ฟังได้เลย',
-                ),
-                for (final MapEntry(key: y, value: items)
-                    in view.pastByYear.entries)
-                  EntrySection(
-                    title: y == now.year ? 'ก่อนหน้านี้' : '$y',
-                    subtitle: 'พ.ศ. ${be(y)}',
-                    items: items,
-                    now: now,
-                  ),
-              ],
-              const SliverToBoxAdapter(child: SizedBox(height: 144)),
-            ],
-          ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// บอกว่ากำลังกรองด้วยอะไร เจอกี่รายการ และล้างได้จากที่เดียว
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({required this.filter, required this.state, required this.count, required this.onClear});
+  final TimelineFilter filter;
+  final DiaryState state;
+  final int count;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Insets.page, 4, Insets.page, 0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                  if (filter.day != null) Text(fmtDate(filter.day!), style: theme.textTheme.titleSmall),
+                  for (final key in filter.cats ?? const <String>{})
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      CategoryDot(state.category(key).color),
+                      const SizedBox(width: 6),
+                      Flexible(child: Text(state.category(key).label, style: theme.textTheme.titleSmall)),
+                    ]),
+                ]),
+                Text('$count รายการ', style: theme.textTheme.bodySmall),
+              ]),
+            ),
+            TextButton(onPressed: onClear, child: const Text('ล้างตัวกรอง')),
+          ]),
         ),
       ),
     );

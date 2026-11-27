@@ -110,6 +110,9 @@ void main() {
   testWidgets('a key typed for one service is not saved to another', (tester) async {
     await pump(tester, const AiSettingsPage());
     await tester.enterText(find.byType(TextField), 'google-key');
+    // ช่อง key อยู่ใต้บริการที่เลือก บริการถัดๆ ไปจึงอาจต้องเลื่อนหา
+    await tester.scrollUntilVisible(find.text('OpenAI'), 100, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('OpenAI'));
     await tester.pumpAndSettle();
     expect(find.text('API key ของ OpenAI'), findsOneWidget);

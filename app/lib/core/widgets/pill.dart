@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// ป้ายเล็ก: มีสี = พื้นสีจางตัวอักษรสีหมวด · outlined = ข้อความเทาไม่มีกรอบ (เงียบที่สุด)
+/// ป้ายเล็ก: มีสี = พื้นสีจางตัวอักษรสีนั้น · ไม่มีสี = พื้นเทา · outlined = ข้อความเทาไม่มีพื้น (เงียบที่สุด)
 class Pill extends StatelessWidget {
   const Pill(this.text, {super.key, this.color, this.outlined = false, this.icon});
   final String text;
@@ -10,7 +10,8 @@ class Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final Color bg, fg;
     if (outlined) {
       bg = Colors.transparent;
@@ -21,14 +22,14 @@ class Pill extends StatelessWidget {
       fg = Color.lerp(color, scheme.onSurface, 0.3)!;
     } else {
       bg = scheme.surfaceContainerHighest;
-      fg = scheme.onSurfaceVariant;
+      fg = scheme.onSurface;
     }
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: outlined ? 0 : 8, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: outlined ? 0 : 8, vertical: outlined ? 0 : 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[Icon(icon, size: 13, color: fg), const SizedBox(width: 3)],
-        Flexible(child: Text(text, style: TextStyle(fontSize: 12, color: fg, height: 1.4, fontWeight: FontWeight.w500))),
+        if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 4)],
+        Flexible(child: Text(text, style: theme.textTheme.labelMedium?.copyWith(color: fg))),
       ]),
     );
   }

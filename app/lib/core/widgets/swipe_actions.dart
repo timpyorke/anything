@@ -12,11 +12,14 @@ class SwipeAction {
 /// ปัดซ้ายเพื่อเผยปุ่มด้านขวา — ปัดอย่างเดียวไม่ทำอะไร ต้องแตะปุ่มอีกครั้ง
 /// แตะที่อื่น (รวมถึงเริ่มปัดแถวอื่น) จะปิดเอง จึงเปิดค้างได้ทีละแถว
 class SwipeActions extends StatefulWidget {
-  const SwipeActions({super.key, required this.actions, required this.child});
+  const SwipeActions({super.key, required this.actions, required this.child, this.borderRadius = BorderRadius.zero});
   static const actionWidth = 80.0;
 
   final List<SwipeAction> actions;
   final Widget child;
+
+  /// มุมของกรอบที่ตัดเนื้อหาตอนเลื่อน ให้ตรงกับรูปร่างของ [child]
+  final BorderRadius borderRadius;
 
   @override
   State<SwipeActions> createState() => _SwipeActionsState();
@@ -62,7 +65,7 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
             animation: _open,
             builder: (context, _) {
               final closed = _closed;
-              return GestureDetector(
+              final content = GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onHorizontalDragUpdate: (d) => _open.value -= d.primaryDelta! / _width,
                 onHorizontalDragEnd: _dragEnd,
@@ -83,13 +86,16 @@ class _SwipeActionsState extends State<SwipeActions> with SingleTickerProviderSt
                     Transform.translate(
                       offset: Offset(-_width * _open.value, 0),
                       // ตอนเปิดอยู่ การแตะเนื้อหาคือการปิด ไม่ใช่เปิดรายการ
-                      child: AbsorbPointer(
-                        absorbing: !closed,
-                        child: Material(color: Theme.of(context).scaffoldBackgroundColor, child: widget.child),
-                      ),
+                      child: AbsorbPointer(absorbing: !closed, child: widget.child),
                     ),
                   ],
                 ),
+              );
+              // ตัดเฉพาะตอนเปิดอยู่ ไม่ให้เนื้อหาที่เลื่อนออกไปทับส่วนข้างๆ
+              return ClipRRect(
+                borderRadius: widget.borderRadius,
+                clipBehavior: closed ? Clip.none : Clip.antiAlias,
+                child: content,
               );
             },
           ),

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ai/ai_settings.dart';
+import '../../app/app_theme.dart';
 import '../../app/providers.dart';
+import '../../core/widgets/confirm_dialog.dart';
+import '../../core/widgets/section.dart';
 import 'ai_settings_page.dart';
 import 'local_model_page.dart';
-import 'settings_header.dart';
 import 'settings_view_model.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -23,18 +25,13 @@ class SettingsPage extends ConsumerWidget {
     final nav = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final signOut = ref.read(signOutProvider);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('ออกจากระบบ?'),
-        content: const Text('ต้องเข้าสู่ระบบใหม่เพื่อดูบันทึก'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ออกจากระบบ')),
-        ],
-      ),
+    final ok = await confirmAction(
+      context,
+      title: 'ออกจากระบบ?',
+      message: 'ต้องเข้าสู่ระบบใหม่เพื่อดูบันทึก',
+      confirmLabel: 'ออกจากระบบ',
     );
-    if (ok != true) return;
+    if (!ok) return;
     try {
       await signOut();
       nav.popUntil((r) => r.isFirst);
@@ -54,46 +51,66 @@ class SettingsPage extends ConsumerWidget {
     final ai = ref.watch(aiSettingsProvider);
     final st = ref.watch(settingsViewModelProvider);
     void push(Widget page) => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
+    final theme = Theme.of(context);
+    const chevron = Icon(Icons.chevron_right_rounded);
     return Scaffold(
       appBar: AppBar(title: const Text('ตั้งค่า')),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: EdgeInsets.only(top: 4, bottom: 32 + MediaQuery.paddingOf(context).bottom),
         children: [
-          ListTile(
-            leading: CircleAvatar(child: Text(email.characters.first.toUpperCase())),
-            title: Text(email),
-          ),
-          const Divider(height: 32),
-          const SettingsHeader('AI'),
-          ListTile(
-            leading: const Icon(Icons.auto_awesome_outlined),
-            title: const Text('AI ที่ใช้บันทึก'),
-            subtitle: Text('${ai.provider.label}${ai.missingKey ? ' · ยังไม่ได้ใส่ API key' : ''}'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => push(const AiSettingsPage()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.memory),
-            title: const Text('โมเดลในเครื่อง'),
-            subtitle: Text(gemmaStatus(st), style: st.gemmaError == null ? null : TextStyle(color: scheme.error)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => push(const LocalModelPage()),
-          ),
-          const Divider(height: 32),
-          const SettingsHeader('ข้อมูล'),
-          ListTile(
-            leading: const Icon(Icons.file_upload_outlined),
-            title: const Text('นำเข้าจากระบบเดิม'),
-            subtitle: const Text('ไฟล์ JSON ที่ export จากระบบเดิม · นำเข้าซ้ำได้ ไม่สร้างรายการซ้ำ'),
-            trailing: st.importing ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)) : null,
-            onTap: st.importing ? null : () => _import(ref),
-          ),
-          const Divider(height: 32),
-          ListTile(
-            leading: Icon(Icons.logout, color: scheme.error),
-            title: Text('ออกจากระบบ', style: TextStyle(color: scheme.error)),
-            onTap: () => _signOut(context, ref),
-          ),
+          SectionCard(children: [
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: Insets.page, vertical: 8),
+              leading: CircleAvatar(
+                backgroundColor: scheme.primaryContainer,
+                foregroundColor: scheme.onPrimaryContainer,
+                child: Text(email.characters.first.toUpperCase()),
+              ),
+              title: Text(email, style: theme.textTheme.titleMedium),
+              subtitle: const Text('บัญชีที่ใช้อยู่'),
+            ),
+          ]),
+          SectionCard(title: 'AI', children: [
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('AI ที่ใช้บันทึก'),
+              subtitle: Text(
+                '${ai.provider.label}${ai.missingKey ? ' · ยังไม่ได้ใส่ API key' : ''}',
+                // ยังใช้ AI ไม่ได้ ต้องสะดุดตา
+                style: ai.missingKey ? theme.textTheme.bodySmall?.copyWith(color: scheme.error) : null,
+              ),
+              trailing: chevron,
+              onTap: () => push(const AiSettingsPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.memory_rounded),
+              title: const Text('โมเดลในเครื่อง'),
+              subtitle: Text(
+                gemmaStatus(st),
+                style: st.gemmaError == null ? null : theme.textTheme.bodySmall?.copyWith(color: scheme.error),
+              ),
+              trailing: chevron,
+              onTap: () => push(const LocalModelPage()),
+            ),
+          ]),
+          SectionCard(title: 'ข้อมูล', children: [
+            ListTile(
+              leading: const Icon(Icons.file_upload_outlined),
+              title: const Text('นำเข้าจากระบบเดิม'),
+              subtitle: const Text('ไฟล์ JSON ที่ export จากระบบเดิม · นำเข้าซ้ำได้ ไม่สร้างรายการซ้ำ'),
+              trailing: st.importing
+                  ? const SizedBox.square(dimension: 24, child: CircularProgressIndicator(strokeWidth: 3))
+                  : chevron,
+              onTap: st.importing ? null : () => _import(ref),
+            ),
+          ]),
+          SectionCard(children: [
+            ListTile(
+              leading: Icon(Icons.logout_rounded, color: scheme.error),
+              title: Text('ออกจากระบบ', style: theme.textTheme.bodyLarge?.copyWith(color: scheme.error)),
+              onTap: () => _signOut(context, ref),
+            ),
+          ]),
         ],
       ),
     );

@@ -16,7 +16,11 @@ class UpcomingPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('กำลังจะมาถึง')),
       body: view.upcoming.isEmpty
-          ? const EmptyState(icon: Icons.event_available, text: 'ไม่มีรายการล่วงหน้า')
+          ? const EmptyState(
+              icon: Icons.event_available_rounded,
+              text: 'ไม่มีรายการล่วงหน้า',
+              detail: 'นัดหมายหรือแผนที่บันทึกไว้จะแสดงที่นี่',
+            )
           : CustomScrollView(
               slivers: [
                 for (final MapEntry(key: month, value: items) in view.upcomingByMonth.entries)
@@ -26,7 +30,7 @@ class UpcomingPage extends ConsumerWidget {
                     items: items,
                     now: view.now,
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                SliverToBoxAdapter(child: SizedBox(height: 32 + MediaQuery.paddingOf(context).bottom)),
               ],
             ),
     );

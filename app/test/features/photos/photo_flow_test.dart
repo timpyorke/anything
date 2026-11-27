@@ -101,6 +101,21 @@ void main() {
     expect(find.byTooltip('ส่ง'), findsNothing);
   });
 
+  testWidgets('the message box keeps focus when it grows on the first character', (tester) async {
+    await pump(tester);
+    await tester.showKeyboard(find.byType(TextField));
+    await tester.pump();
+    final before = tester.state<EditableTextState>(find.byType(EditableText));
+    final narrow = tester.getSize(find.byType(TextField)).width;
+
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'ก'));
+    await tester.pumpAndSettle();
+    expect(tester.state<EditableTextState>(find.byType(EditableText)), same(before));
+    expect(before.widget.focusNode.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+    expect(tester.getSize(find.byType(TextField)).width, greaterThan(narrow));
+  });
+
   testWidgets('without an AI set up the text and photo stay in the box', (tester) async {
     await pump(tester);
     await tester.tap(find.byTooltip('กล้อง'));

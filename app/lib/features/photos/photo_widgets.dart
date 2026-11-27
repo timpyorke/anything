@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -75,7 +76,7 @@ class PhotoStrip extends StatelessWidget {
               child: GestureDetector(
                 onTap: () => openPhotoViewer(context, photos, i),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   child: ColoredBox(
                     color: scheme.surfaceContainerHighest,
                     child: PhotoImage(photos[i], cacheWidth: pixels),
@@ -86,7 +87,7 @@ class PhotoStrip extends StatelessWidget {
             if (hidden > 0 && i == shown - 1)
               IgnorePointer(
                 child: DecoratedBox(
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
                   child: Center(
                     child: Text('+$hidden', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
                   ),
@@ -98,8 +99,10 @@ class PhotoStrip extends StatelessWidget {
                 child: IconButton(
                   tooltip: 'เอารูปออก',
                   onPressed: () => onRemove!(i),
-                  padding: const EdgeInsets.all(2),
-                  constraints: const BoxConstraints(),
+                  // พื้นที่แตะกว้างกว่าวงกลมที่เห็น กดเอาออกได้โดยไม่เปิดรูป
+                  padding: const EdgeInsets.all(4),
+                  constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                  alignment: Alignment.topRight,
                   style: IconButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                   icon: const CircleAvatar(
                     radius: 11,
@@ -148,6 +151,10 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
+          // สีตัวอักษรของธีมเป็นสีเข้มในโหมดสว่าง ต้องกำหนดทับให้อ่านได้บนพื้นดำ
+          titleTextStyle: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
+          systemOverlayStyle: SystemUiOverlayStyle.light,
+          centerTitle: true,
           title: Text('${_index + 1}/${widget.photos.length}'),
         ),
         body: PageView.builder(

@@ -2,7 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_theme.dart';
 import '../../core/utils/dates.dart';
+import '../../core/widgets/category_dot.dart';
 import '../../core/widgets/stat_tile.dart';
 import '../diary/diary_view_model.dart';
 import '../timeline/timeline_filter.dart';
@@ -18,75 +20,71 @@ class OverviewPage extends ConsumerWidget {
     final s = ref.watch(diaryViewModelProvider);
     final st = ref.watch(overviewStatsProvider);
     final filter = ref.read(timelineFilterProvider.notifier);
+    final theme = Theme.of(context);
     final now = today();
     final year = st.year, years = st.years, counts = st.counts;
     final cats = st.categoriesByCount, catCounts = st.categoryCounts;
     final maxCat = catCounts.values.fold(1, max);
+
+    // สูงตามเนื้อหา (ไม่ล็อกอัตราส่วน) กันข้อความล้นเมื่อป้ายยาวหรือผู้ใช้ขยายตัวอักษร
+    Widget pair(StatTile a, StatTile b) => IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [Expanded(child: a), const SizedBox(width: 8), Expanded(child: b)],
+          ),
+        );
+
     return Scaffold(
       appBar: AppBar(title: const Text('ภาพรวม')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 96),
+        padding: EdgeInsets.fromLTRB(Insets.page, 4, Insets.page, 32 + MediaQuery.paddingOf(context).bottom),
         children: [
           if (st.age != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
               child: Text(
                 'อายุ ${st.age} ปี',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
-          // สูงตามเนื้อหา (ไม่ล็อกอัตราส่วน) กันข้อความล้นเมื่อป้ายยาวหรือผู้ใช้ขยายตัวอักษร
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: StatTile(value: '${st.pastDays} วัน', label: 'วันที่มีบันทึก ($year)'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: StatTile(value: '${st.bestStreak} วัน', label: 'บันทึกต่อเนื่องนานสุด'),
-                ),
-              ],
-            ),
+          pair(
+            StatTile(icon: Icons.event_available_rounded, value: '${st.pastDays} วัน', label: 'วันที่มีบันทึก (พ.ศ. ${be(year)})'),
+            StatTile(icon: Icons.local_fire_department_outlined, value: '${st.bestStreak} วัน', label: 'บันทึกต่อเนื่องนานสุด'),
           ),
           const SizedBox(height: 8),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: StatTile(value: '${st.totalEntries}', label: 'รายการทั้งหมด'),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: StatTile(value: '${st.plannedDays} วัน', label: 'มีแผนล่วงหน้า'),
-                ),
-              ],
-            ),
+          pair(
+            StatTile(icon: Icons.notes_rounded, value: '${st.totalEntries}', label: 'รายการทั้งหมด'),
+            StatTile(icon: Icons.upcoming_outlined, value: '${st.plannedDays} วัน', label: 'มีแผนล่วงหน้า'),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Card(
-            margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text('ปฏิทินกิจกรรม', style: Theme.of(context).textTheme.titleMedium),
-                      const Spacer(),
-                      DropdownButton<int>(
-                        value: year,
-                        underline: const SizedBox(),
-                        items: [for (final y in years) DropdownMenuItem(value: y, child: Text('$y (${be(y)})'))],
-                        onChanged: ref.read(overviewYearProvider.notifier).select,
-                      ),
-                    ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text('ปฏิทินกิจกรรม', style: theme.textTheme.titleMedium),
+                        DropdownButton<int>(
+                          value: year,
+                          underline: const SizedBox(),
+                          style: theme.textTheme.labelLarge,
+                          borderRadius: BorderRadius.circular(Corners.control),
+                          items: [for (final y in years) DropdownMenuItem(value: y, child: Text('พ.ศ. ${be(y)}'))],
+                          onChanged: ref.read(overviewYearProvider.notifier).select,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   ActivityHeatmap(
+                    // ปีใหม่ = ตำแหน่งเลื่อนใหม่
+                    key: ValueKey(year),
                     year: year,
                     counts: counts,
                     now: now,
@@ -95,55 +93,59 @@ class OverviewPage extends ConsumerWidget {
                       openTimeline();
                     },
                   ),
-                  const SizedBox(height: 8),
-                  Text('แตะวันที่มีสีเพื่อดูใน Timeline · กรอบประ = แผนล่วงหน้า', style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 10),
+                  const HeatmapLegend(),
+                  const SizedBox(height: 4),
+                  Text('แตะวันที่มีสีเพื่อดูบันทึกของวันนั้น', style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
+          if (cats.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Card(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('แยกตามหมวด', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
+                    child: Text('แยกตามหมวด', style: theme.textTheme.titleMedium),
+                  ),
                   for (final c in cats)
                     InkWell(
-                      borderRadius: BorderRadius.circular(8),
                       onTap: () {
                         filter.showOnly(cats: {c});
                         openTimeline();
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                        child: Row(
-                          children: [
-                            SizedBox(width: 110, child: Text(s.category(c).label, overflow: TextOverflow.ellipsis)),
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: FractionallySizedBox(
-                                  widthFactor: max(catCounts[c]! / maxCat, 0.03),
-                                  child: Container(
-                                    height: 10,
-                                    decoration: BoxDecoration(color: s.category(c).color, borderRadius: BorderRadius.circular(5)),
-                                  ),
-                                ),
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                        child: Column(children: [
+                          Row(children: [
+                            CategoryDot(s.category(c).color),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(s.category(c).label, overflow: TextOverflow.ellipsis)),
+                            Text('${catCounts[c]}', style: theme.textTheme.titleSmall),
+                            Icon(Icons.chevron_right_rounded, size: 20, color: theme.colorScheme.onSurfaceVariant),
+                          ]),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(3),
+                            child: ExcludeSemantics(
+                              child: LinearProgressIndicator(
+                                value: max(catCounts[c]! / maxCat, 0.02),
+                                minHeight: 6,
+                                color: s.category(c).color,
                               ),
                             ),
-                            SizedBox(width: 32, child: Text('${catCounts[c]}', textAlign: TextAlign.right)),
-                          ],
-                        ),
+                          ),
+                        ]),
                       ),
                     ),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

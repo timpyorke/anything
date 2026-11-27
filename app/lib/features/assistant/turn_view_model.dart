@@ -90,6 +90,13 @@ class TurnViewModel extends Notifier<TurnState> {
     }
   }
 
+  /// รอบล่าสุดพังก่อนได้คำตอบ (เน็ตหลุด, บริการล่ม) — ส่งข้อความและรูปเดิมอีกครั้ง
+  Future<void> retry() async {
+    if (state.busy || state.result != null || state.error == null) return;
+    state = state.copyWith(busy: true, error: null);
+    await _run();
+  }
+
   /// ผู้ใช้ตอบคำถามหรือบอกเพิ่ม — ผลรอบใหม่แทนรายการที่เสนอไว้เดิม
   Future<void> answer(String message) async {
     final m = message.trim();

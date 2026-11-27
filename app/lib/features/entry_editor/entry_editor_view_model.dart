@@ -64,6 +64,10 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
   void setEvery(String? every) =>
       state = state.copyWith(every: every, entry: every == null ? state.entry : state.entry.copyWith(endDate: null));
 
+  /// เอาวันสิ้นสุดของการเกิดซ้ำออก
+  void clearUntil() => state = state.copyWith(
+      entry: state.entry.copyWith(recurrence: state.entry.recurrence?.copyWith(until: null)));
+
   Future<void> addPhotos(PhotoSource source) async {
     if (state.picking || state.saving) return;
     state = state.copyWith(picking: true, notice: null);
@@ -92,7 +96,10 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
     var out = state.entry.copyWith(
       title: title.trim(),
       body: body.trim(),
-      recurrence: state.every == null ? null : Recurrence(state.every!, times: int.tryParse(times.trim())),
+      // วันสิ้นสุด (จากการนำเข้า) ไม่มีช่องให้พิมพ์ จึงต้องยกมาจากของเดิม
+      recurrence: state.every == null
+          ? null
+          : Recurrence(state.every!, times: int.tryParse(times.trim()), until: state.entry.recurrence?.until),
       metrics: [
         for (final (key, text) in metrics)
           if (text.trim().isNotEmpty)
@@ -118,8 +125,12 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
   }
 
   Future<void> delete() async {
-    await ref.read(diaryViewModelProvider.notifier).delete(state.entry);
-    if (!ref.mounted) return;
-    state = state.copyWith(exit: EditorExit.deleted);
+    state = state.copyWith(saving: true, errors: const []);
+    try {
+      await ref.read(diaryViewModelProvider.notifier).delete(state.entry);
+      if (ref.mounted) state = state.copyWith(exit: EditorExit.deleted, saving: false);
+    } catch (err) {
+      if (ref.mounted) state = state.copyWith(errors: ['ลบไม่สำเร็จ: $err'], saving: false);
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/auth_page.dart';
@@ -16,6 +17,10 @@ class AnythingApp extends ConsumerWidget {
     return MaterialApp(
       title: "anything - diary's",
       debugShowCheckedModeBanner: false,
+      // แอปเป็นภาษาไทย: ตัวเลือกวันที่ เมนูคัดลอก/วาง และคำอ่านปุ่มของระบบต้องเป็นไทยด้วย
+      locale: const Locale('th'),
+      supportedLocales: const [Locale('th')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       home: userId == null ? const AuthPage() : TimelinePage(key: ValueKey(userId)),

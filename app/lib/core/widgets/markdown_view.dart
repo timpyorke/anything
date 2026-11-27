@@ -33,23 +33,28 @@ class MarkdownView extends StatelessWidget {
                   _inline(text, t.bodyMedium!.copyWith(color: muted)),
                 ])),
               ),
-            MdCheck(:final text, :final done, :final index) => InkWell(
-                onTap: onToggle == null ? null : () => onToggle!(index, !done),
-                borderRadius: BorderRadius.circular(6),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(done ? Icons.check_box : Icons.check_box_outline_blank,
-                        size: 20, color: done ? (accent ?? Theme.of(context).colorScheme.primary) : muted),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(text,
-                          style: t.bodyMedium!.copyWith(
-                            color: muted,
-                            decoration: done ? TextDecoration.lineThrough : null,
-                          )),
-                    ),
-                  ]),
+            MdCheck(:final text, :final done, :final index) => Semantics(
+                checked: done,
+                child: InkWell(
+                  onTap: onToggle == null ? null : () => onToggle!(index, !done),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    // แถวสูงพอให้นิ้วแตะติ๊กได้โดยไม่ไปโดนการ์ด
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(done ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                          size: 22, color: done ? (accent ?? Theme.of(context).colorScheme.primary) : muted),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(text,
+                            style: t.bodyMedium!.copyWith(
+                              color: done ? muted : null,
+                              decoration: done ? TextDecoration.lineThrough : null,
+                              decorationColor: muted,
+                            )),
+                      ),
+                    ]),
+                  ),
                 ),
               ),
           },

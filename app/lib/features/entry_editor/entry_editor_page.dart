@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_theme.dart';
 import '../../core/utils/dates.dart';
+import '../../core/widgets/category_dot.dart';
+import '../../core/widgets/confirm_dialog.dart';
+import '../../core/widgets/notice_box.dart';
+import '../../core/widgets/section.dart';
 import '../../data/photo_picker.dart';
 import '../../domain/entry.dart';
 import '../../domain/photo.dart';
+import '../../domain/recurrence.dart';
 import '../diary/deleted_snack_bar.dart';
 import '../diary/diary_view_model.dart';
 import '../photos/photo_widgets.dart';
@@ -34,19 +41,25 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
   late final TextEditingController _title, _body, _times;
   final _metricCtrls = <(String, TextEditingController)>[];
 
+  /// ค่าตอนเปิดหน้า ใช้เทียบว่ามีอะไรแก้ค้างอยู่ไหม
+  late final EntryEditorState _initial;
+  late final String _initialText;
+
   late final _args = EditorArgs(entry: widget.entry, draft: widget.draft);
   EntryEditorViewModel get _vm => ref.read(entryEditorViewModelProvider(_args).notifier);
 
   @override
   void initState() {
     super.initState();
-    final e = ref.read(entryEditorViewModelProvider(_args)).entry;
+    _initial = ref.read(entryEditorViewModelProvider(_args));
+    final e = _initial.entry;
     _title = TextEditingController(text: e.title);
     _body = TextEditingController(text: e.body);
     _times = TextEditingController(text: e.recurrence?.times?.toString() ?? '');
     for (final m in e.metrics) {
       _metricCtrls.add((m.key, TextEditingController(text: _fmt(m.value))));
     }
+    _initialText = _formText();
   }
 
   @override
@@ -59,14 +72,25 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
 
   static String _fmt(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
-  Future<DateTime?> _pick(DateTime initial) => showDatePicker(
+  /// ข้อความในทุกช่องรวมกัน (คั่นด้วยอักขระที่พิมพ์ไม่ได้)
+  String _formText() => [
+        _title.text,
+        _body.text,
+        _times.text,
+        for (final (key, c) in _metricCtrls) '$key=${c.text}',
+      ].join('\u0000');
+
+  bool _dirty(EntryEditorState st) => st.entry != _initial.entry || st.every != _initial.every || _formText() != _initialText;
+
+  Future<DateTime?> _pick(DateTime initial, {DateTime? first}) => showDatePicker(
         context: context,
-        initialDate: initial,
-        firstDate: DateTime(1900),
+        initialDate: first != null && initial.isBefore(first) ? first : initial,
+        firstDate: first ?? DateTime(1900),
         lastDate: DateTime(2100),
       ).then((d) => d == null ? null : dayOf(d));
 
   Future<void> _save() async {
+    FocusScope.of(context).unfocus();
     await _vm.save(
       title: _title.text,
       body: _body.text,
@@ -88,18 +112,27 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
 
   Future<void> _delete() async {
     final e = ref.read(entryEditorViewModelProvider(_args)).entry;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('ลบรายการนี้?'),
-        content: Text(e.title.isEmpty ? fmtDate(e.date) : e.title),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('ยกเลิก')),
-          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ลบ')),
-        ],
-      ),
+    final name = e.title.isEmpty ? fmtDate(e.date) : e.title;
+    final ok = await confirmAction(
+      context,
+      title: 'ลบรายการนี้?',
+      message: e.recurrence == null ? name : '$name\nรายการที่เกิดซ้ำจะถูกลบทั้งชุด',
+      confirmLabel: 'ลบ',
     );
-    if (ok == true) await _vm.delete();
+    if (ok) await _vm.delete();
+  }
+
+  Future<void> _confirmDiscard() async {
+    // จับ navigator ไว้ก่อน await
+    final nav = Navigator.of(context);
+    final ok = await confirmAction(
+      context,
+      title: 'ทิ้งการแก้ไข?',
+      message: 'สิ่งที่แก้ไว้ยังไม่ได้บันทึก',
+      cancelLabel: 'แก้ต่อ',
+      confirmLabel: 'ทิ้ง',
+    );
+    if (ok) nav.pop();
   }
 
   @override
@@ -108,197 +141,284 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
     ref.listen(entryEditorViewModelProvider(_args).select((s) => s.notice), (_, notice) {
       if (notice != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
     });
-    final s = ref.watch(diaryViewModelProvider);
     final st = ref.watch(entryEditorViewModelProvider(_args));
+    // พิมพ์ในช่องไหนก็ต้องคำนวณใหม่ว่ามีของแก้ค้างอยู่ไหม
+    return ListenableBuilder(
+      listenable: Listenable.merge([_title, _body, _times, for (final m in _metricCtrls) m.$2]),
+      child: _form(context, st),
+      builder: (context, form) => PopScope(
+        // กำลังบันทึกอยู่ออกได้เลย งานบันทึกทำต่อจนจบ
+        canPop: st.saving || !_dirty(st),
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _confirmDiscard();
+        },
+        child: form!,
+      ),
+    );
+  }
+
+  Widget _form(BuildContext context, EntryEditorState st) {
+    final s = ref.watch(diaryViewModelProvider);
     final e = st.entry, vm = _vm;
+    final theme = Theme.of(context);
     final usedKeys = _metricCtrls.map((m) => m.$1).toSet();
     final freeMetrics = s.metricDefs.where((m) => !usedKeys.contains(m.key)).toList();
+    final until = e.recurrence?.until;
+    const gap = SizedBox(height: 20);
+    final date = Labeled(
+      st.every != null ? 'เริ่ม' : 'วันที่',
+      child: _DateField(
+        value: e.date,
+        onTap: () async {
+          final d = await _pick(e.date);
+          if (d != null) vm.setDate(d);
+        },
+      ),
+    );
+    final endDate = !e.isDaily && st.every == null
+        ? Labeled(
+            'ถึง (ถ้ามี)',
+            child: _DateField(
+              value: e.endDate,
+              onClear: e.endDate == null ? null : () => vm.setEndDate(null),
+              onTap: () async {
+                final next = e.date.add(const Duration(days: 1));
+                final d = await _pick(e.endDate ?? next, first: next);
+                if (d != null) vm.setEndDate(d);
+              },
+            ),
+          )
+        : null;
     return Scaffold(
       appBar: AppBar(
         title: Text(st.isNew ? (st.draft ? 'ตรวจก่อนบันทึก' : 'เพิ่มบันทึก') : 'แก้ไข'),
         actions: [
           if (!st.isNew)
-            IconButton(tooltip: 'ลบ', icon: const Icon(Icons.delete_outline), onPressed: st.saving ? null : _delete),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(onPressed: st.saving || st.picking ? null : _save, child: const Text('บันทึก')),
-          ),
+            IconButton(
+              tooltip: 'ลบ',
+              icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
+              onPressed: st.saving ? null : _delete,
+            ),
+          const SizedBox(width: 4),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (st.errors.isNotEmpty)
-            Card(
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(st.errors.join('\n'), style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)),
+      // ปุ่มบันทึกอยู่ใน body (ไม่ใช่ bottomNavigationBar) จึงลอยขึ้นเหนือคีย์บอร์ดด้วย
+      body: Column(children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(Insets.page, 4, Insets.page, 24),
+            children: [
+              SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: 'event', label: Text('เหตุการณ์')),
+                  ButtonSegment(value: 'daily', label: Text('บันทึกรายวัน')),
+                ],
+                selected: {e.kind},
+                onSelectionChanged: (v) => vm.setKind(v.first),
               ),
-            ),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'event', label: Text('เหตุการณ์'), icon: Icon(Icons.event)),
-              ButtonSegment(value: 'daily', label: Text('บันทึกรายวัน'), icon: Icon(Icons.today)),
-            ],
-            selected: {e.kind},
-            onSelectionChanged: (v) => vm.setKind(v.first),
-          ),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-              child: _DateField(
-                label: st.every != null ? 'เริ่ม' : 'วันที่',
-                value: e.date,
-                onTap: () async {
-                  final d = await _pick(e.date);
-                  if (d != null) vm.setDate(d);
-                },
-              ),
-            ),
-            if (!e.isDaily && st.every == null) ...[
-              const SizedBox(width: 12),
-              Expanded(
-                child: _DateField(
-                  label: 'ถึง (ถ้ามี)',
-                  value: e.endDate,
-                  onClear: e.endDate == null ? null : () => vm.setEndDate(null),
-                  onTap: () async {
-                    final d = await _pick(e.endDate ?? e.date.add(const Duration(days: 1)));
-                    if (d != null) vm.setEndDate(d);
-                  },
+              gap,
+              Labeled(
+                'ชื่อ',
+                child: TextField(
+                  controller: _title,
+                  textInputAction: TextInputAction.next,
+                  style: theme.textTheme.titleMedium,
+                  decoration: const InputDecoration(hintText: 'เกิดอะไรขึ้น'),
                 ),
               ),
-            ],
-          ]),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: s.categoryKeys.contains(e.category) ? e.category : null,
-            decoration: const InputDecoration(labelText: 'หมวด', border: OutlineInputBorder()),
-            items: [
-              for (final c in s.categories)
-                DropdownMenuItem(
-                  value: c.key,
-                  child: Row(children: [CircleAvatar(radius: 6, backgroundColor: c.color), const SizedBox(width: 10), Text(c.label)]),
-                ),
-            ],
-            onChanged: vm.setCategory,
-          ),
-          const SizedBox(height: 16),
-          TextField(controller: _title, decoration: const InputDecoration(labelText: 'ชื่อ', border: OutlineInputBorder())),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _body,
-            minLines: 3,
-            maxLines: 12,
-            decoration: const InputDecoration(
-              labelText: 'รายละเอียด',
-              helperText: 'รองรับ - list, - [ ] checklist, **ตัวหนา**',
-              alignLabelWithHint: true,
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text('รูปภาพ', style: Theme.of(context).textTheme.titleSmall),
-          if (e.photos.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: PhotoStrip(e.photos, size: 88, onRemove: st.saving ? null : (i) => vm.removePhoto(e.photos[i])),
-            ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            for (final (source, icon, label) in const [
-              (PhotoSource.camera, Icons.photo_camera_outlined, 'ถ่ายรูป'),
-              (PhotoSource.gallery, Icons.photo_library_outlined, 'คลังรูป'),
-            ])
-              OutlinedButton.icon(
-                onPressed: st.saving || st.picking || e.photos.length >= maxPhotosPerEntry ? null : () => vm.addPhotos(source),
-                icon: Icon(icon),
-                label: Text(label),
-              ),
-            if (st.picking) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-          ]),
-          const SizedBox(height: 20),
-          Text('ตัวเลข', style: Theme.of(context).textTheme.titleSmall),
-          for (var i = 0; i < _metricCtrls.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _metricCtrls[i].$2,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                    decoration: InputDecoration(
-                      labelText: s.metricLabel(_metricCtrls[i].$1),
-                      suffixText: s.metricUnit(_metricCtrls[i].$1),
-                      border: const OutlineInputBorder(),
-                    ),
+              gap,
+              Labeled(
+                'รายละเอียด',
+                child: TextField(
+                  controller: _body,
+                  minLines: 3,
+                  maxLines: 12,
+                  decoration: const InputDecoration(
+                    hintText: 'เล่าต่อได้เลย',
+                    helperText: 'ขึ้นต้น “- ” เป็นรายการ, “- [ ] ” เป็นช่องติ๊ก, **ข้อความ** เป็นตัวหนา',
+                    helperMaxLines: 3,
                   ),
                 ),
-                IconButton(
-                  tooltip: 'เอาออก',
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () => setState(() => _metricCtrls.removeAt(i).$2.dispose()),
+              ),
+              gap,
+              if (endDate == null)
+                date
+              // ตัวอักษรใหญ่: วางซ้อนกันแทนการบีบจนตกบรรทัด
+              else if (MediaQuery.textScalerOf(context).scale(14) > 17)
+                Column(children: [date, const SizedBox(height: 12), endDate])
+              else
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: date),
+                  const SizedBox(width: 12),
+                  Expanded(child: endDate),
+                ]),
+              gap,
+              Labeled(
+                'หมวด',
+                child: Wrap(spacing: 8, runSpacing: 4, children: [
+                  for (final c in s.categories)
+                    ChoiceChip(
+                      avatar: Center(child: CategoryDot(c.color, size: 10)),
+                      label: Text(c.label),
+                      selected: e.category == c.key,
+                      onSelected: (_) => vm.setCategory(c.key),
+                    ),
+                ]),
+              ),
+              gap,
+              Labeled(
+                'รูปภาพ',
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (e.photos.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: PhotoStrip(e.photos, size: 88, onRemove: st.saving ? null : (i) => vm.removePhoto(e.photos[i])),
+                    ),
+                  Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    for (final (source, icon, label) in const [
+                      (PhotoSource.camera, Icons.photo_camera_outlined, 'ถ่ายรูป'),
+                      (PhotoSource.gallery, Icons.photo_library_outlined, 'คลังรูป'),
+                    ])
+                      OutlinedButton.icon(
+                        onPressed: st.saving || st.picking || e.photos.length >= maxPhotosPerEntry ? null : () => vm.addPhotos(source),
+                        icon: Icon(icon),
+                        label: Text(label),
+                      ),
+                    if (st.picking) const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                    Text('${e.photos.length}/$maxPhotosPerEntry', style: theme.textTheme.bodySmall),
+                  ]),
+                ]),
+              ),
+              gap,
+              Labeled(
+                'ตัวเลข',
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (var i = 0; i < _metricCtrls.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: [
+                        Expanded(flex: 2, child: Text(s.metricLabel(_metricCtrls[i].$1))),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 3,
+                          child: Semantics(
+                            label: s.metricLabel(_metricCtrls[i].$1),
+                            child: TextField(
+                              controller: _metricCtrls[i].$2,
+                              textAlign: TextAlign.end,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                              decoration: InputDecoration(hintText: '0', suffixText: s.metricUnit(_metricCtrls[i].$1)),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'เอาออก',
+                          icon: const Icon(Icons.remove_circle_outline_rounded),
+                          onPressed: () => setState(() => _metricCtrls.removeAt(i).$2.dispose()),
+                        ),
+                      ]),
+                    ),
+                  if (freeMetrics.isNotEmpty)
+                    PopupMenuButton<String>(
+                      tooltip: 'เพิ่มตัวเลข',
+                      onSelected: (k) => setState(() => _metricCtrls.add((k, TextEditingController()))),
+                      itemBuilder: (_) => [for (final m in freeMetrics) PopupMenuItem(value: m.key, child: Text('${m.label} ${m.unit}'.trim()))],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.add_rounded, color: theme.colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text('เพิ่มตัวเลข', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+                        ]),
+                      ),
+                    ),
+                ]),
+              ),
+              if (!e.isDaily) ...[
+                gap,
+                Labeled(
+                  'เกิดซ้ำ',
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Wrap(spacing: 8, runSpacing: 4, children: [
+                      for (final value in [
+                        null,
+                        'daily',
+                        'weekly',
+                        'monthly',
+                        'yearly',
+                        // รอบแบบอื่นจาก AI หรือการนำเข้า เช่น 2w ต้องยังเลือกคงไว้ได้
+                        if (_initial.every != null && !Recurrence.words.containsKey(_initial.every)) _initial.every,
+                      ])
+                        ChoiceChip(
+                          label: Text(value == null ? 'ไม่เกิดซ้ำ' : Recurrence(value).label),
+                          selected: st.every == value,
+                          onSelected: (_) => vm.setEvery(value),
+                        ),
+                    ]),
+                    if (st.every != null) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _times,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        decoration: const InputDecoration(
+                          hintText: 'ไม่จำกัด',
+                          prefixIcon: Icon(Icons.repeat_rounded),
+                          suffixText: 'ครั้ง',
+                        ),
+                      ),
+                      if (until != null) ...[
+                        const SizedBox(height: 8),
+                        InputChip(
+                          label: Text('สิ้นสุด ${fmtDate(until)}'),
+                          deleteButtonTooltipMessage: 'เอาวันสิ้นสุดออก',
+                          onDeleted: vm.clearUntil,
+                        ),
+                      ],
+                    ],
+                  ]),
+                ),
+              ],
+              if (e.legacyRef != null) ...[
+                gap,
+                Text('นำเข้าจาก ${e.legacyRef}', style: theme.textTheme.bodySmall),
+              ],
+            ],
+          ),
+        ),
+        // ข้อผิดพลาดอยู่ติดปุ่มบันทึก เลื่อนอยู่ตรงไหนก็เห็น
+        DecoratedBox(
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: theme.colorScheme.outlineVariant))),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(Insets.page, 10, Insets.page, 10),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (st.errors.isNotEmpty) ...[
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 140),
+                    child: SingleChildScrollView(child: NoticeBox(st.errors.join('\n'))),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                FilledButton(
+                  onPressed: st.saving || st.picking ? null : _save,
+                  child: st.saving
+                      ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('บันทึก'),
                 ),
               ]),
             ),
-          if (freeMetrics.isNotEmpty)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: PopupMenuButton<String>(
-                onSelected: (k) => setState(() => _metricCtrls.add((k, TextEditingController()))),
-                itemBuilder: (_) => [for (final m in freeMetrics) PopupMenuItem(value: m.key, child: Text('${m.label} ${m.unit}'.trim()))],
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add), SizedBox(width: 6), Text('เพิ่มตัวเลข')]),
-                ),
-              ),
-            ),
-          if (!e.isDaily) ...[
-            const SizedBox(height: 12),
-            Text('เกิดซ้ำ', style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<String?>(
-                  initialValue: st.every,
-                  decoration: const InputDecoration(border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: null, child: Text('ไม่เกิดซ้ำ')),
-                    DropdownMenuItem(value: 'weekly', child: Text('ทุกสัปดาห์')),
-                    DropdownMenuItem(value: 'monthly', child: Text('ทุกเดือน')),
-                    DropdownMenuItem(value: 'yearly', child: Text('ทุกปี')),
-                    DropdownMenuItem(value: 'daily', child: Text('ทุกวัน')),
-                  ],
-                  onChanged: vm.setEvery,
-                ),
-              ),
-              if (st.every != null) ...[
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 120,
-                  child: TextField(
-                    controller: _times,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'กี่ครั้ง', hintText: 'ไม่จำกัด', border: OutlineInputBorder()),
-                  ),
-                ),
-              ],
-            ]),
-          ],
-          if (e.legacyRef != null) ...[
-            const SizedBox(height: 16),
-            Text('นำเข้าจาก ${e.legacyRef}', style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ],
-      ),
+          ),
+        ),
+      ]),
     );
   }
 }
 
 class _DateField extends StatelessWidget {
-  const _DateField({required this.label, required this.value, required this.onTap, this.onClear});
-  final String label;
+  const _DateField({required this.value, required this.onTap, this.onClear});
   final DateTime? value;
   final VoidCallback onTap;
   final VoidCallback? onClear;
@@ -306,14 +426,18 @@ class _DateField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(Corners.control),
         child: InputDecorator(
           decoration: InputDecoration(
-            labelText: label,
-            border: const OutlineInputBorder(),
-            suffixIcon: onClear == null ? const Icon(Icons.calendar_today, size: 18) : IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: onClear),
+            contentPadding: const EdgeInsets.only(left: 14),
+            suffixIcon: onClear == null
+                ? const Icon(Icons.calendar_today_rounded, size: 18)
+                : IconButton(tooltip: 'ล้างวันที่', icon: const Icon(Icons.close_rounded, size: 18), onPressed: onClear),
           ),
-          child: Text(value == null ? '—' : fmtDate(value!)),
+          child: Text(
+            value == null ? 'เลือกวันที่' : fmtDate(value!),
+            style: value == null ? TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
+          ),
         ),
       );
 }

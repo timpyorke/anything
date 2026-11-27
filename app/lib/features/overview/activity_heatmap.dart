@@ -10,7 +10,10 @@ class ActivityHeatmap extends StatefulWidget {
   final DateTime now;
   final void Function(DateTime) onTapDay;
 
-  static const cell = 13.0, gap = 3.0, top = 16.0;
+  static const cell = 16.0, gap = 3.0, top = 20.0;
+
+  /// ความกว้างคอลัมน์ชื่อวันด้านซ้าย (อยู่กับที่ ไม่เลื่อนตามปฏิทิน)
+  static const labelWidth = 22.0;
 
   @override
   State<ActivityHeatmap> createState() => _ActivityHeatmapState();
@@ -27,7 +30,8 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
       if (!_scroll.hasClients || widget.year != widget.now.year) return;
       final week = (daysBetween(DateTime.utc(widget.year), widget.now) + _offset) ~/ 7;
       final x = week * (ActivityHeatmap.cell + ActivityHeatmap.gap) - _scroll.position.viewportDimension / 2;
-      _scroll.jumpTo(x.clamp(0, _scroll.position.maxScrollExtent));
+      const step = ActivityHeatmap.cell + ActivityHeatmap.gap;
+      _scroll.jumpTo(((x / step).floor() * step).clamp(0, _scroll.position.maxScrollExtent));
     });
   }
 
@@ -45,9 +49,12 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
     final days = daysBetween(DateTime.utc(widget.year), DateTime.utc(widget.year + 1));
     final weeks = ((days + _offset) / 7).ceil();
     final scheme = Theme.of(context).colorScheme;
-    return SingleChildScrollView(
+    final labelStyle = Theme.of(context).textTheme.labelSmall!.copyWith(color: scheme.onSurfaceVariant);
+    Widget grid(double viewport) => SingleChildScrollView(
       controller: _scroll,
       scrollDirection: Axis.horizontal,
+      // เติมท้ายให้ระยะเลื่อนสุดลงตัวพอดีสัปดาห์ ขอบซ้ายจะไม่เห็นช่องถูกตัดครึ่ง
+      padding: EdgeInsets.only(right: weeks * step > viewport ? (viewport - weeks * step) % step : 0),
       child: GestureDetector(
         onTapUp: (d) {
           final col = (d.localPosition.dx / step).floor(), row = ((d.localPosition.dy - ActivityHeatmap.top) / step).floor();
@@ -69,13 +76,59 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
               days: days,
               on: scheme.primary,
               off: scheme.surfaceContainerHighest,
-              text: scheme.onSurfaceVariant,
+              labelStyle: labelStyle,
               todayBorder: scheme.onSurface,
             ),
           ),
         ),
       ),
     );
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      ExcludeSemantics(
+        child: SizedBox(
+          width: ActivityHeatmap.labelWidth,
+          child: Column(children: [
+            const SizedBox(height: ActivityHeatmap.top),
+            // แถวเรียงจากอาทิตย์ แสดงเว้นแถวพอให้อ่านตำแหน่งได้
+            for (final name in const ['', 'จ', '', 'พ', '', 'ศ', ''])
+              SizedBox(
+                height: step,
+                child: Text(name, style: labelStyle.copyWith(height: 1.2), textScaler: TextScaler.noScaling),
+              ),
+          ]),
+        ),
+      ),
+      Expanded(child: LayoutBuilder(builder: (context, box) => grid(box.maxWidth))),
+    ]);
+  }
+}
+
+/// อธิบายสัญลักษณ์ของปฏิทิน — ต้องตรงกับที่ [_HeatmapPainter] วาด
+class HeatmapLegend extends StatelessWidget {
+  const HeatmapLegend({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    Widget item(String label, Color fill, [Color? border]) => Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: fill,
+              borderRadius: BorderRadius.circular(3),
+              border: border == null ? null : Border.all(color: border),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Flexible(child: Text(label, style: theme.textTheme.bodySmall)),
+        ]);
+    return Wrap(spacing: 16, runSpacing: 4, children: [
+      item('มีบันทึก', scheme.primary),
+      item('แผนล่วงหน้า', scheme.primary.withValues(alpha: 0.18), scheme.primary),
+      item('วันนี้', scheme.surfaceContainerHighest, scheme.onSurface),
+    ]);
   }
 }
 
@@ -88,13 +141,14 @@ class _HeatmapPainter extends CustomPainter {
     required this.days,
     required this.on,
     required this.off,
-    required this.text,
+    required this.labelStyle,
     required this.todayBorder,
   });
   final int year, offset, days;
   final Map<DateTime, int> counts;
   final DateTime now;
-  final Color on, off, text, todayBorder;
+  final Color on, off, todayBorder;
+  final TextStyle labelStyle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -102,7 +156,7 @@ class _HeatmapPainter extends CustomPainter {
     for (var m = 0; m < 12; m++) {
       final idx = daysBetween(DateTime.utc(year), DateTime.utc(year, m + 1)) + offset;
       final tp = TextPainter(
-        text: TextSpan(text: thMonthsShort[m], style: TextStyle(fontSize: 10, color: text)),
+        text: TextSpan(text: thMonthsShort[m], style: labelStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset((idx ~/ 7) * step, 0));
@@ -112,7 +166,7 @@ class _HeatmapPainter extends CustomPainter {
       final idx = i + offset;
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH((idx ~/ 7) * step, ActivityHeatmap.top + (idx % 7) * step, ActivityHeatmap.cell, ActivityHeatmap.cell),
-        const Radius.circular(3),
+        const Radius.circular(4),
       );
       final n = counts[d] ?? 0;
       final future = d.isAfter(now);
@@ -135,5 +189,6 @@ class _HeatmapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_HeatmapPainter old) => old.year != year || old.counts != counts || old.on != on;
+  bool shouldRepaint(_HeatmapPainter old) =>
+      old.year != year || old.counts != counts || old.now != now || old.on != on || old.labelStyle != labelStyle;
 }

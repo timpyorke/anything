@@ -112,6 +112,23 @@ void main() {
     expect(llm.lastUser, allOf(contains('นัดหมอ'), contains('นัดวันไหน'), contains('1 ธ.ค.')));
   });
 
+  test('turn: retry sends the same message again after a failure', () async {
+    final sub = c.listen(turnViewModelProvider(_appointment), (_, _) {});
+    addTearDown(sub.close);
+    await _settle();
+    llm.reply.completeError(LlmException('ล่ม'));
+    await _settle();
+    expect(sub.read().error, 'ล่ม');
+
+    llm.reply = Completer()..complete(newEntry);
+    llm.lastUser = null;
+    await c.read(turnViewModelProvider(_appointment).notifier).retry();
+    expect(llm.lastUser, contains('นัดหมอ'));
+    expect(sub.read().error, isNull);
+    expect(sub.read().result!.actions.single.valid, isTrue);
+    expect(sub.read().history, isEmpty);
+  });
+
   test('turn: sheet closed while saving', () async {
     final sub = c.listen(turnViewModelProvider(_x), (_, _) {});
     llm.reply.complete(newEntry);
