@@ -16,18 +16,35 @@ abstract class TimelineViewState with _$TimelineViewState {
 
   const factory TimelineViewState({
     required DateTime now,
+    /// เริ่มหลังวันนี้ เรียงจากใกล้ไปไกล
     required List<Entry> upcoming,
+    /// ของวันนี้ รวมช่วงหลายวันที่เริ่มไปแล้วและยังไม่จบ
+    required List<Entry> current,
+    /// จบไปแล้ว เรียงจากใหม่ไปเก่า
     required List<Entry> past,
-    Entry? next,
-    Entry? birth,
   }) = _TimelineViewState;
 
-  int get count => upcoming.length + past.length;
+  int get count => upcoming.length + current.length + past.length;
 
-  /// รายการเก่า จัดกลุ่มตามปี (ปีล่าสุดก่อน)
-  Map<int, List<Entry>> get pastByYear {
+  Map<int, List<Entry>> get pastByYear => _byYear(past);
+
+  /// ทุกรายการเป็นเส้นเวลาเดียว ใหม่ไปเก่า (ใช้กับผลกรองและผลค้นหา)
+  Map<int, List<Entry>> get allByYear =>
+      _byYear([...upcoming, ...current, ...past]..sort((a, b) => b.shownDate(now).compareTo(a.shownDate(now))));
+
+  /// รายการล่วงหน้าจัดกลุ่มตามเดือน (key = วันที่ 1 ของเดือน)
+  Map<DateTime, List<Entry>> get upcomingByMonth {
+    final byMonth = <DateTime, List<Entry>>{};
+    for (final e in upcoming) {
+      final d = e.shownDate(now);
+      (byMonth[DateTime.utc(d.year, d.month)] ??= []).add(e);
+    }
+    return byMonth;
+  }
+
+  Map<int, List<Entry>> _byYear(List<Entry> items) {
     final byYear = <int, List<Entry>>{};
-    for (final e in past) {
+    for (final e in items) {
       (byYear[e.shownDate(now).year] ??= []).add(e);
     }
     return byYear;
@@ -46,12 +63,12 @@ TimelineViewState buildTimelineView(DiaryState s, TimelineFilter f, DateTime now
     final text = '${e.searchText} ${s.category(e.category).label.toLowerCase()}';
     return words.every(text.contains);
   }).toList();
-  final upcoming = list.where((e) => e.isUpcoming(now)).toList()..sort((a, b) => a.shownDate(now).compareTo(b.shownDate(now)));
-  final past = list.where((e) => !e.isUpcoming(now)).toList()..sort((a, b) => b.shownDate(now).compareTo(a.shownDate(now)));
-  final next = (s.entries.where((e) => !e.hidden && (e.shownDate(now).isAfter(now) || (e.endDate != null && e.isUpcoming(now)))).toList()
-        ..sort((a, b) => a.shownDate(now).compareTo(b.shownDate(now))))
-      .firstOrNull;
-  return TimelineViewState(now: now, upcoming: upcoming, past: past, next: next, birth: s.birth);
+  int oldestFirst(Entry a, Entry b) => a.shownDate(now).compareTo(b.shownDate(now));
+  int newestFirst(Entry a, Entry b) => oldestFirst(b, a);
+  final upcoming = list.where((e) => e.shownDate(now).isAfter(now)).toList()..sort(oldestFirst);
+  final current = list.where((e) => !e.shownDate(now).isAfter(now) && e.isUpcoming(now)).toList()..sort(newestFirst);
+  final past = list.where((e) => !e.isUpcoming(now)).toList()..sort(newestFirst);
+  return TimelineViewState(now: now, upcoming: upcoming, current: current, past: past);
 }
 
 final timelineViewProvider = Provider.autoDispose<TimelineViewState>(

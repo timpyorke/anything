@@ -11,6 +11,8 @@ import '../settings/settings_page.dart';
 import 'entry_section.dart';
 import 'timeline_filter.dart';
 import 'timeline_view_model.dart';
+import 'upcoming_card.dart';
+import 'upcoming_page.dart';
 
 class TimelinePage extends ConsumerWidget {
   const TimelinePage({super.key});
@@ -21,10 +23,7 @@ class TimelinePage extends ConsumerWidget {
     final f = ref.watch(timelineFilterProvider);
     final fvm = ref.read(timelineFilterProvider.notifier);
     final view = ref.watch(timelineViewProvider);
-    final now = view.now,
-        list = [...view.upcoming, ...view.past],
-        upcoming = view.upcoming,
-        past = view.past;
+    final now = view.now;
     void push(Widget page) =>
         Navigator.push(context, MaterialPageRoute(builder: (_) => page));
     return Scaffold(
@@ -56,7 +55,6 @@ class TimelinePage extends ConsumerWidget {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _Summary(view: view)),
             if (f.active)
               SliverToBoxAdapter(
                 child: Padding(
@@ -69,7 +67,7 @@ class TimelinePage extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       Text(
-                        '${list.length} รายการ',
+                        '${view.count} รายการ',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const Spacer(),
@@ -96,131 +94,41 @@ class TimelinePage extends ConsumerWidget {
                   ),
                 ),
               )
-            else if (list.isEmpty)
-              SliverFillRemaining(
+            else if (f.active && view.count == 0)
+              const SliverFillRemaining(
                 hasScrollBody: false,
-                child: EmptyState(
-                  icon: f.active ? Icons.filter_alt_off : Icons.edit_note,
-                  text: f.active
-                      ? 'ไม่พบรายการที่ตรงกับตัวกรอง'
-                      : 'ยังไม่มีบันทึก\nกดค้างที่ปุ่ม "กดค้างเพื่อคุย" แล้วเล่าให้ AI ฟังได้เลย',
-                ),
+                child: EmptyState(icon: Icons.filter_alt_off, text: 'ไม่พบรายการที่ตรงกับตัวกรอง'),
               )
             else ...[
-              if (upcoming.isNotEmpty)
+              // กรองอยู่: เส้นเวลาเดียว ไม่ย่ออนาคต เพื่อไม่ให้วันที่เลือกถูกซ่อน
+              if (f.active)
+                for (final MapEntry(key: y, value: items) in view.allByYear.entries)
+                  EntrySection(title: '$y', subtitle: 'พ.ศ. ${be(y)}', items: items, now: now)
+              else ...[
+                if (view.upcoming.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: UpcomingCard(view: view, onShowAll: () => push(const UpcomingPage())),
+                  ),
                 EntrySection(
-                  title: 'กำลังจะมาถึง',
-                  subtitle: '${upcoming.length} รายการ',
-                  items: upcoming,
+                  title: 'วันนี้',
+                  subtitle: '${thWeekdays[now.weekday - 1]} ${fmtDay(now)}',
+                  items: view.current,
                   now: now,
+                  impliedBadge: 'วันนี้',
+                  emptyText: 'ยังไม่ได้บันทึก พิมพ์หรือกดไมค์เล่าให้ AI ฟังได้เลย',
                 ),
-              if (upcoming.isNotEmpty && past.isNotEmpty)
-                SliverToBoxAdapter(child: _TodayDivider(now: now)),
-              for (final MapEntry(key: y, value: items) in view.pastByYear.entries)
-                EntrySection(title: '$y', subtitle: 'พ.ศ. ${be(y)}', items: items, now: now),
+                for (final MapEntry(key: y, value: items) in view.pastByYear.entries)
+                  EntrySection(
+                    title: y == now.year ? 'ก่อนหน้านี้' : '$y',
+                    subtitle: 'พ.ศ. ${be(y)}',
+                    items: items,
+                    now: now,
+                  ),
+              ],
               const SliverToBoxAdapter(child: SizedBox(height: 144)),
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _TodayDivider extends StatelessWidget {
-  const _TodayDivider({required this.now});
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = Theme.of(context).colorScheme.primary;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Row(
-        children: [
-          Expanded(child: Divider(color: c.withValues(alpha: 0.5))),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(
-              'วันนี้ · ${fmtDate(now)}',
-              style: TextStyle(
-                color: c,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(child: Divider(color: c.withValues(alpha: 0.5))),
-        ],
-      ),
-    );
-  }
-}
-
-class _Summary extends ConsumerWidget {
-  const _Summary({required this.view});
-  final TimelineViewState view;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final state = ref.watch(diaryViewModelProvider);
-    final now = view.now, birth = view.birth, next = view.next;
-    final facts = [if (birth != null) 'อายุ ${ageOn(birth.date, now)} ปี'];
-    final nextRel = next == null
-        ? null
-        : relativeLabel(
-            next.shownDate(now),
-            next.lastDate(now),
-            now,
-            isRange: next.endDate != null,
-          );
-    // ไม่ล็อกความสูง: ข้อความยาวแค่ขึ้นบรรทัดใหม่ ไม่มีวันล้นทับ
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (facts.isNotEmpty)
-            Text(
-              facts.join(' · '),
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          if (next != null) ...[
-            if (facts.isNotEmpty) const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ถัดไป${nextRel == null ? '' : ' · $nextRel'}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    next.title.isEmpty
-                        ? state.category(next.category).label
-                        : next.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

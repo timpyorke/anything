@@ -4,6 +4,7 @@ import 'package:anything/app/providers.dart';
 import 'package:anything/domain/category.dart';
 import 'package:anything/domain/entry.dart';
 import 'package:anything/domain/metric.dart';
+import 'package:anything/features/diary/diary_state.dart';
 import 'package:anything/features/diary/diary_view_model.dart';
 import 'package:anything/features/timeline/timeline_filter.dart';
 import 'package:anything/features/timeline/timeline_view_model.dart';
@@ -90,11 +91,32 @@ void main() {
     var view = buildTimelineView(s, const TimelineFilter(), now);
     expect(view.upcoming.single.title, 'อนาคต');
     expect(view.past.single.title, 'อดีต');
-    expect(view.next?.title, 'อนาคต');
+    expect(view.current, isEmpty);
     view = buildTimelineView(s, const TimelineFilter(cats: {'daily'}), now);
     expect(view.count, 1);
     view = buildTimelineView(s, const TimelineFilter(query: 'อดีต'), now);
     expect(view.past.single.title, 'อดีต');
+  });
+
+  test('timeline view puts today and ongoing ranges in current, in time order elsewhere', () {
+    final today = DateTime.utc(2026, 6, 15);
+    Entry on(String title, DateTime date, {DateTime? end}) => Entry(id: title, date: date, endDate: end, category: 'health', title: title);
+    final s = DiaryState(entries: [
+      on('ปีหน้า', DateTime.utc(2027, 1, 1)),
+      on('พรุ่งนี้', DateTime.utc(2026, 6, 16)),
+      on('ทริป', DateTime.utc(2026, 6, 10), end: DateTime.utc(2026, 6, 20)),
+      on('วันนี้', today),
+      on('เมื่อวาน', DateTime.utc(2026, 6, 14)),
+    ]);
+    final view = buildTimelineView(s, const TimelineFilter(), today);
+    expect(view.upcoming.map((e) => e.title), ['พรุ่งนี้', 'ปีหน้า']);
+    expect(view.current.map((e) => e.title), ['วันนี้', 'ทริป']);
+    expect(view.past.map((e) => e.title), ['เมื่อวาน']);
+    expect(view.upcomingByMonth.keys, [DateTime.utc(2026, 6), DateTime.utc(2027, 1)]);
+    expect(
+      view.allByYear.values.expand((l) => l).map((e) => e.title),
+      ['ปีหน้า', 'พรุ่งนี้', 'วันนี้', 'เมื่อวาน', 'ทริป'],
+    );
   });
 
   test('filter view model: showOnly replaces previous filter, clear resets', () {

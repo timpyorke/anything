@@ -67,14 +67,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         child: Text('พบ ${results.count} รายการ', style: Theme.of(context).textTheme.bodySmall),
                       ),
                     ),
-                    if (results.upcoming.isNotEmpty)
-                      EntrySection(
-                        title: 'กำลังจะมาถึง',
-                        subtitle: '${results.upcoming.length} รายการ',
-                        items: results.upcoming,
-                        now: results.now,
-                      ),
-                    for (final MapEntry(key: y, value: items) in results.pastByYear.entries)
+                    for (final MapEntry(key: y, value: items) in results.allByYear.entries)
                       EntrySection(title: '$y', subtitle: 'พ.ศ. ${be(y)}', items: items, now: results.now),
                     const SliverToBoxAdapter(child: SizedBox(height: 32)),
                   ],

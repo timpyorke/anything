@@ -21,6 +21,7 @@ abstract class OverviewStats with _$OverviewStats {
     required int totalEntries,
     required List<String> categoriesByCount,
     required Map<String, int> categoryCounts,
+    int? age,
   }) = _OverviewStats;
 }
 
@@ -46,6 +47,7 @@ OverviewStats computeOverview(DiaryState s, DateTime now, int? selectedYear) {
   for (final e in s.entries.where((e) => !e.hidden)) {
     catCounts[e.category] = (catCounts[e.category] ?? 0) + 1;
   }
+  final birth = s.birth;
   return OverviewStats(
     year: year,
     years: years,
@@ -56,6 +58,7 @@ OverviewStats computeOverview(DiaryState s, DateTime now, int? selectedYear) {
     totalEntries: s.entries.where((e) => !e.hidden).length,
     categoriesByCount: catCounts.keys.toList()..sort((a, b) => catCounts[b]!.compareTo(catCounts[a]!)),
     categoryCounts: catCounts,
+    age: birth == null ? null : ageOn(birth.date, now),
   );
 }
 
