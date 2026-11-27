@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/utils/dates.dart';
 import '../../core/utils/format.dart';
 import '../../core/widgets/category_dot.dart';
@@ -29,18 +31,19 @@ class EntryCard extends ConsumerWidget {
   final VoidCallback? onTap;
 
   /// ป้ายบอกเวลาเทียบกับวันนี้ เช่น "วันนี้" (null = ไม่มีป้าย)
-  static String? badgeOf(Entry e, DateTime now) =>
-      relativeLabel(e.shownDate(now), e.lastDate(now), now, isRange: e.endDate != null);
+  static String? badgeOf(Entry e, DateTime now, AppStrings t) =>
+      t.relativeLabel(e.shownDate(now), e.lastDate(now), now, isRange: e.endDate != null);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final state = ref.watch(diaryViewModelProvider);
     final e = entry;
     final cat = state.category(e.category);
     final scheme = Theme.of(context).colorScheme;
     final rs = e.recState(now);
     final shown = e.shownDate(now);
-    final rel = showBadge ? badgeOf(e, now) : null;
+    final rel = showBadge ? badgeOf(e, now, t) : null;
     final soon = rel != null && daysBetween(now, shown) <= 7;
     final cl = e.checklist;
 
@@ -84,8 +87,8 @@ class EntryCard extends ConsumerWidget {
                 const SizedBox(width: 6),
                 Flexible(child: Text(cat.label, style: theme.textTheme.labelMedium?.copyWith(color: muted))),
               ]),
-              if (e.endDate != null) Pill(fmtRange(e.date, e.endDate), outlined: true, icon: Icons.date_range_rounded),
-              if (e.recurrence != null) Pill(e.recurrence!.label, outlined: true, icon: Icons.repeat_rounded),
+              if (e.endDate != null) Pill(t.fmtRange(e.date, e.endDate), outlined: true, icon: Icons.date_range_rounded),
+              if (e.recurrence != null) Pill(t.recurrenceLabel(e.recurrence!), outlined: true, icon: Icons.repeat_rounded),
               if (cl != null) Pill('${cl.done}/${cl.total}', outlined: true, icon: Icons.checklist_rounded),
               if (e.source == 'ai') const Pill('AI', outlined: true, icon: Icons.auto_awesome_rounded),
             ]),
@@ -105,7 +108,7 @@ class EntryCard extends ConsumerWidget {
                   padding: const EdgeInsets.only(top: 10),
                   child: Column(children: [
                     Text('${shown.day}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.5)),
-                    Text(thMonthsShort[shown.month - 1], style: theme.textTheme.bodySmall),
+                    Text(t.monthsShort[shown.month - 1], style: theme.textTheme.bodySmall),
                   ]),
                 )
               : null,
@@ -119,14 +122,14 @@ class EntryCard extends ConsumerWidget {
             actions: [
               if (onTap != null)
                 SwipeAction(
-                  label: 'แก้ไข',
+                  label: t.edit,
                   icon: Icons.edit_outlined,
                   background: scheme.surfaceContainerHighest,
                   foreground: scheme.onSurface,
                   onPressed: onTap!,
                 ),
               SwipeAction(
-                label: 'ลบ',
+                label: t.delete,
                 icon: Icons.delete_outline_rounded,
                 background: scheme.error,
                 foreground: scheme.onError,
@@ -143,25 +146,27 @@ class EntryCard extends ConsumerWidget {
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final diary = ref.read(diaryViewModelProvider.notifier);
+    final t = ref.read(stringsProvider);
     try {
       await diary.delete(entry);
-      showDeletedSnackBar(messenger, diary, entry);
+      showDeletedSnackBar(messenger, diary, entry, t);
     } catch (err) {
-      messenger.showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: $err')));
+      messenger.showSnackBar(SnackBar(content: Text(t.deleteFailed(err))));
     }
   }
 
   Future<void> _toggle(BuildContext context, WidgetRef ref, int index, bool done) async {
     final messenger = ScaffoldMessenger.of(context);
+    final t = ref.read(stringsProvider);
     try {
       await ref.read(diaryViewModelProvider.notifier).toggleCheck(entry, index, done);
     } catch (err) {
-      messenger.showSnackBar(SnackBar(content: Text('บันทึกไม่สำเร็จ: $err')));
+      messenger.showSnackBar(SnackBar(content: Text(t.saveFailed(err))));
     }
   }
 }
 
-class _RecurrenceInfo extends StatelessWidget {
+class _RecurrenceInfo extends ConsumerWidget {
   const _RecurrenceInfo({required this.entry, required this.rs, required this.state, required this.color});
   final Entry entry;
   final RecState rs;
@@ -169,15 +174,16 @@ class _RecurrenceInfo extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final r = entry.recurrence!;
     final total = r.times ?? (r.until != null ? rs.dates.length : null);
     final theme = Theme.of(context);
     final progress = rs.next == null
-        ? 'ครบ ${rs.done} ครั้ง'
+        ? t.occurrencesDone(rs.done)
         : total == null
-            ? 'ครั้งที่ ${rs.done + 1} · ผ่านไป ${rs.done} ครั้ง'
-            : 'ครั้งที่ ${rs.done + 1}/$total · ครั้งสุดท้าย ${fmtDate(rs.last)}';
+            ? t.occurrenceOpen(rs.done)
+            : t.occurrenceOf(rs.done, total, t.fmtDate(rs.last));
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -190,7 +196,7 @@ class _RecurrenceInfo extends StatelessWidget {
               color: color,
               backgroundColor: color.withValues(alpha: 0.15),
               // semanticsValue ต้องเป็นตัวเลข จึงปล่อยให้เป็นเปอร์เซ็นต์ แล้วบอกจำนวนครั้งในป้าย
-              semanticsLabel: 'ความคืบหน้า ${rs.done} จาก $total ครั้ง',
+              semanticsLabel: t.progressLabel(rs.done, total),
             ),
           ),
           const SizedBox(height: 6),
@@ -202,11 +208,12 @@ class _RecurrenceInfo extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${state.metricLabel(m.key)} ครั้งละ ${fmtNum(m.value)} $u'.trim(), style: theme.textTheme.bodyMedium),
+                Text(t.metricEach(state.metricLabel(m.key), fmtNum(m.value), u).trim(), style: theme.textTheme.bodyMedium),
                 Text(
-                  'สะสม ${fmtNum(m.value * rs.done)} $u'
-                          '${total == null ? '' : ' · คงเหลือ ${fmtNum(m.value * (total - rs.done))} $u'}'
-                      .trim(),
+                  [
+                    t.metricTotal(fmtNum(m.value * rs.done), u).trim(),
+                    if (total != null) t.metricRemaining(fmtNum(m.value * (total - rs.done)), u).trim(),
+                  ].join(' · '),
                   style: theme.textTheme.bodySmall,
                 ),
               ]),

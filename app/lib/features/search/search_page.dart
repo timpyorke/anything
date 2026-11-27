@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
-import '../../core/utils/dates.dart';
+import '../../app/language.dart';
 import '../../core/widgets/category_dot.dart';
 import '../../core/widgets/empty_state.dart';
 import '../diary/diary_view_model.dart';
@@ -32,6 +32,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(stringsProvider);
     final query = ref.watch(searchQueryProvider);
     final results = ref.watch(searchResultsProvider);
     final categories = ref.watch(diaryViewModelProvider.select((s) => s.categories));
@@ -50,7 +51,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             autofocus: true,
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
-              hintText: 'ค้นหาชื่อ เนื้อหา หมวด…',
+              hintText: t.searchHint,
               hintMaxLines: 1,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
@@ -60,7 +61,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               suffixIcon: query.isEmpty
                   ? null
                   : IconButton(
-                      tooltip: 'ล้างคำค้น',
+                      tooltip: t.clearSearch,
                       icon: const Icon(Icons.close_rounded, size: 20),
                       onPressed: () => _setText(''),
                     ),
@@ -76,10 +77,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Icon(Icons.search_rounded, size: 40, color: theme.colorScheme.onSurfaceVariant),
                 const SizedBox(height: 8),
-                Text('พิมพ์คำที่ต้องการค้นหา', textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
+                Text(t.searchPrompt, textAlign: TextAlign.center, style: theme.textTheme.titleMedium),
                 if (categories.isNotEmpty) ...[
                   const SizedBox(height: 24),
-                  Text('หรือเลือกหมวด', textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+                  Text(t.orPickCategory, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
                   const SizedBox(height: 8),
                   Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 4, children: [
                     for (final c in categories)
@@ -96,10 +97,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ]),
             )
           : results.count == 0
-              ? const EmptyState(
+              ? EmptyState(
                   icon: Icons.search_off_rounded,
-                  text: 'ไม่พบรายการที่ตรงกับคำค้น',
-                  detail: 'ลองใช้คำที่สั้นลง หรือค้นด้วยชื่อหมวด',
+                  text: t.noSearchResults,
+                  detail: t.noSearchResultsDetail,
                 )
               : CustomScrollView(
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -107,11 +108,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(Insets.page + 4, 8, Insets.page, 0),
-                        child: Text('พบ ${results.count} รายการ', style: theme.textTheme.bodySmall),
+                        child: Text(t.foundCount(results.count), style: theme.textTheme.bodySmall),
                       ),
                     ),
                     for (final MapEntry(key: y, value: items) in results.allByYear.entries)
-                      EntrySection(title: 'พ.ศ. ${be(y)}', items: items, now: results.now),
+                      EntrySection(title: t.yearLabel(y), items: items, now: results.now),
                     SliverToBoxAdapter(child: SizedBox(height: 32 + MediaQuery.paddingOf(context).bottom)),
                   ],
                 ),

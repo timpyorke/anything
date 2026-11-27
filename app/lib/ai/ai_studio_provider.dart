@@ -3,13 +3,19 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../core/l10n/app_strings.dart';
+import '../core/l10n/strings_th.dart';
 import '../domain/photo.dart';
 import 'llm_provider.dart';
 
 /// Google AI Studio (Gemini API) ด้วย API key ของผู้ใช้
 /// รองรับทั้งโมเดล Gemini และ Gemma ที่ AI Studio ให้บริการ (เช่น gemma-3-27b-it)
 class AiStudioProvider implements LlmProvider {
-  AiStudioProvider({required this.apiKey, required this.model, http.Client? client}) : _client = client ?? http.Client();
+  AiStudioProvider({required this.apiKey, required this.model, this.strings = const ThStrings(), http.Client? client})
+      : _client = client ?? http.Client();
+
+  /// ภาษาของข้อความผิดพลาด
+  final AppStrings strings;
 
   final String apiKey;
   @override
@@ -20,7 +26,7 @@ class AiStudioProvider implements LlmProvider {
   AiProviderKind get kind => AiProviderKind.aiStudio;
 
   /// รหัสโมเดลที่ key นี้ใช้สร้างข้อความได้ (เรียง A→Z) — ตัดโมเดลสร้างเสียง/รูปออกเพราะใช้บันทึกไม่ได้
-  static Future<List<String>> listModels(String apiKey, {http.Client? client}) async {
+  static Future<List<String>> listModels(String apiKey, {AppStrings strings = const ThStrings(), http.Client? client}) async {
     final c = client ?? http.Client();
     final mediaOnly = RegExp(r'-(tts|image)(-|$)');
     final ids = <String>{};
@@ -31,17 +37,17 @@ class AiStudioProvider implements LlmProvider {
       try {
         res = await c.get(uri, headers: {'x-goog-api-key': apiKey}).timeout(const Duration(seconds: 15));
       } catch (e) {
-        throw LlmException('เชื่อมต่อ AI Studio ไม่ได้: $e');
+        throw LlmException(strings.serviceUnreachable('AI Studio', e));
       }
       final Map<String, dynamic> json;
       try {
         json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       } catch (_) {
-        throw LlmException('AI Studio ตอบกลับผิดรูปแบบ (HTTP ${res.statusCode})');
+        throw LlmException(strings.malformedResponse('AI Studio', res.statusCode));
       }
       if (res.statusCode != 200) {
         final msg = (json['error'] as Map?)?['message'] ?? 'HTTP ${res.statusCode}';
-        throw LlmException('$msg'.contains('API key') ? 'API key ไม่ถูกต้อง' : 'AI Studio: $msg');
+        throw LlmException('$msg'.contains('API key') ? strings.invalidApiKey : 'AI Studio: $msg');
       }
       for (final m in (json['models'] as List? ?? const []).whereType<Map>()) {
         final id = '${m['name'] ?? ''}'.replaceFirst('models/', '');
@@ -97,21 +103,21 @@ class AiStudioProvider implements LlmProvider {
     } on http.RequestAbortedException {
       throw LlmCancelled();
     } catch (e) {
-      throw LlmException('เชื่อมต่อ AI Studio ไม่ได้: $e');
+      throw LlmException(strings.serviceUnreachable('AI Studio', e));
     }
     final Map<String, dynamic> json;
     try {
       json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     } catch (_) {
-      throw LlmException('AI Studio ตอบกลับผิดรูปแบบ (HTTP ${res.statusCode})');
+      throw LlmException(strings.malformedResponse('AI Studio', res.statusCode));
     }
     if (res.statusCode != 200) {
       final msg = (json['error'] as Map?)?['message'] ?? 'HTTP ${res.statusCode}';
       throw LlmException(switch (res.statusCode) {
-        400 when '$msg'.contains('API key') => 'API key ไม่ถูกต้อง — ตรวจในหน้าตั้งค่า',
-        403 => 'API key นี้ไม่มีสิทธิ์ใช้โมเดล $model',
-        404 => 'ไม่พบโมเดล "$model" — ตรวจชื่อโมเดลในหน้าตั้งค่า',
-        429 => 'ใช้โควตา AI Studio เกินแล้ว ลองใหม่ภายหลัง',
+        400 when '$msg'.contains('API key') => strings.invalidApiKeyCheckSettings,
+        403 => strings.modelForbidden(model),
+        404 => strings.modelNotFound(model),
+        429 => strings.quotaExceeded('AI Studio'),
         _ => 'AI Studio: $msg',
       });
     }
@@ -120,7 +126,7 @@ class AiStudioProvider implements LlmProvider {
     final text = parts?.map((p) => (p as Map)['text'] ?? '').join() ?? '';
     if (text.trim().isEmpty) {
       final reason = (candidates?.firstOrNull as Map?)?['finishReason'] ?? json['promptFeedback']?['blockReason'];
-      throw LlmException('AI ไม่ได้ตอบกลับ${reason == null ? '' : ' ($reason)'}');
+      throw LlmException(strings.emptyAnswer(reason));
     }
     return text;
   }

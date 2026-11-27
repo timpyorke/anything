@@ -20,6 +20,7 @@ docs/       แผนและเอกสาร (mobile-migration.md)
 - แก้ไฟล์ที่มี `@freezed` แล้วต้องรัน `dart run build_runner build` (ไฟล์ `*.freezed.dart` อยู่ใน .gitignore — clone ใหม่ต้องรันก่อน build/test)
 
 ## กฎ
+- ข้อความที่ผู้ใช้เห็นอยู่ใน `app/lib/core/l10n/` (ประกาศใน `app_strings.dart` แล้วใส่ให้ครบ `strings_th.dart` และ `strings_en.dart`) — View ใช้ `ref.watch(stringsProvider)`, ViewModel ใช้ `ref.read`; รองรับไทย (ค่าเริ่มต้น) และอังกฤษ
 - กฎการตัดสินใจของ AI ในแอปอยู่ที่ `app/lib/features/assistant/recorder.dart` (พรอมต์ + ตรวจทุก action ก่อนแสดงผู้ใช้) — ถ้าแก้ ต้องแก้ test ใน `app/test/features/assistant/recorder_test.dart` ให้ตรง
 - รูปของรายการลบเฉพาะที่ส่งใน `removedPhotos` ของ `DiaryRepository.update` — รูปที่ไม่อยู่ใน `entry.photos` ไม่ถูกลบ
 - ระบบ markdown เดิม (`legacy/`) ถูกลบแล้ว กู้ได้จาก git: `git show a4b6d1d:legacy/...` หรือ `git checkout a4b6d1d -- legacy`

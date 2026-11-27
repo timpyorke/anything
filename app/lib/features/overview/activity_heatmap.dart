@@ -1,9 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/language.dart';
 import '../../core/utils/dates.dart';
 
-class ActivityHeatmap extends StatefulWidget {
+class ActivityHeatmap extends ConsumerStatefulWidget {
   const ActivityHeatmap({super.key, required this.year, required this.counts, required this.now, required this.onTapDay});
   final int year;
   final Map<DateTime, int> counts;
@@ -16,10 +18,10 @@ class ActivityHeatmap extends StatefulWidget {
   static const labelWidth = 22.0;
 
   @override
-  State<ActivityHeatmap> createState() => _ActivityHeatmapState();
+  ConsumerState<ActivityHeatmap> createState() => _ActivityHeatmapState();
 }
 
-class _ActivityHeatmapState extends State<ActivityHeatmap> {
+class _ActivityHeatmapState extends ConsumerState<ActivityHeatmap> {
   final _scroll = ScrollController();
 
   @override
@@ -45,6 +47,7 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(stringsProvider);
     const step = ActivityHeatmap.cell + ActivityHeatmap.gap;
     final days = daysBetween(DateTime.utc(widget.year), DateTime.utc(widget.year + 1));
     final weeks = ((days + _offset) / 7).ceil();
@@ -65,11 +68,12 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
           if ((widget.counts[day] ?? 0) > 0) widget.onTapDay(day);
         },
         child: Semantics(
-          label: 'ปฏิทินกิจกรรมปี ${widget.year}: มีบันทึก ${widget.counts.length} วัน',
+          label: t.heatmapSummary(widget.year, widget.counts.length),
           child: CustomPaint(
             size: Size(weeks * step, ActivityHeatmap.top + 7 * step),
             painter: _HeatmapPainter(
               year: widget.year,
+              months: t.monthsShort,
               counts: widget.counts,
               now: widget.now,
               offset: _offset,
@@ -90,7 +94,7 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
           child: Column(children: [
             const SizedBox(height: ActivityHeatmap.top),
             // แถวเรียงจากอาทิตย์ แสดงเว้นแถวพอให้อ่านตำแหน่งได้
-            for (final name in const ['', 'จ', '', 'พ', '', 'ศ', ''])
+            for (final name in t.heatmapWeekdays)
               SizedBox(
                 height: step,
                 child: Text(name, style: labelStyle.copyWith(height: 1.2), textScaler: TextScaler.noScaling),
@@ -104,11 +108,12 @@ class _ActivityHeatmapState extends State<ActivityHeatmap> {
 }
 
 /// อธิบายสัญลักษณ์ของปฏิทิน — ต้องตรงกับที่ [_HeatmapPainter] วาด
-class HeatmapLegend extends StatelessWidget {
+class HeatmapLegend extends ConsumerWidget {
   const HeatmapLegend({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     Widget item(String label, Color fill, [Color? border]) => Row(mainAxisSize: MainAxisSize.min, children: [
@@ -125,9 +130,9 @@ class HeatmapLegend extends StatelessWidget {
           Flexible(child: Text(label, style: theme.textTheme.bodySmall)),
         ]);
     return Wrap(spacing: 16, runSpacing: 4, children: [
-      item('มีบันทึก', scheme.primary),
-      item('แผนล่วงหน้า', scheme.primary.withValues(alpha: 0.18), scheme.primary),
-      item('วันนี้', scheme.surfaceContainerHighest, scheme.onSurface),
+      item(t.logged, scheme.primary),
+      item(t.planned, scheme.primary.withValues(alpha: 0.18), scheme.primary),
+      item(t.today, scheme.surfaceContainerHighest, scheme.onSurface),
     ]);
   }
 }
@@ -135,6 +140,7 @@ class HeatmapLegend extends StatelessWidget {
 class _HeatmapPainter extends CustomPainter {
   _HeatmapPainter({
     required this.year,
+    required this.months,
     required this.counts,
     required this.now,
     required this.offset,
@@ -145,6 +151,7 @@ class _HeatmapPainter extends CustomPainter {
     required this.todayBorder,
   });
   final int year, offset, days;
+  final List<String> months;
   final Map<DateTime, int> counts;
   final DateTime now;
   final Color on, off, todayBorder;
@@ -156,7 +163,7 @@ class _HeatmapPainter extends CustomPainter {
     for (var m = 0; m < 12; m++) {
       final idx = daysBetween(DateTime.utc(year), DateTime.utc(year, m + 1)) + offset;
       final tp = TextPainter(
-        text: TextSpan(text: thMonthsShort[m], style: labelStyle),
+        text: TextSpan(text: months[m], style: labelStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset((idx ~/ 7) * step, 0));
@@ -190,5 +197,5 @@ class _HeatmapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HeatmapPainter old) =>
-      old.year != year || old.counts != counts || old.now != now || old.on != on || old.labelStyle != labelStyle;
+      old.year != year || old.months != months || old.counts != counts || old.now != now || old.on != on || old.labelStyle != labelStyle;
 }

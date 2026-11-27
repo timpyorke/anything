@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ai/llm_provider.dart';
+import '../../app/language.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../data/photo_picker.dart';
 import '../../domain/photo.dart';
 import '../photos/photo_widgets.dart';
@@ -66,7 +68,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       case VoiceStart.needsSetup:
         await ensureLlmProvider(nav, ref);
       case VoiceStart.needsVoiceModel:
-        await offerVoiceModelSetup(nav);
+        await offerVoiceModelSetup(nav, ref.read(stringsProvider));
       case VoiceStart.started || VoiceStart.unavailable || VoiceStart.released:
         break;
     }
@@ -121,6 +123,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     ref.listen(photoDraftViewModelProvider.select((p) => p.notice), (_, notice) {
       if (notice != null) _toast(notice);
     });
+    final t = ref.watch(stringsProvider);
     final v = ref.watch(voiceViewModelProvider);
     final draft = ref.watch(photoDraftViewModelProvider);
     final scheme = Theme.of(context).colorScheme;
@@ -138,10 +141,10 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
           child: Padding(
             padding: const EdgeInsets.all(6),
             child: v.listening
-                ? _listeningContent(context, v.seconds)
+                ? _listeningContent(context, t, v.seconds)
                 : v.transcribing
-                    ? _transcribingContent(context)
-                    : _inputContent(context, draft),
+                    ? _transcribingContent(context, t)
+                    : _inputContent(context, t, draft),
           ),
         ),
       ),
@@ -150,19 +153,19 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
 
   /// ช่องว่าง = แถวเดียว (แนบรูป · ช่องพิมพ์ · พูด) กินที่น้อยสุด
   /// มีข้อความแล้ว = ช่องพิมพ์กว้างเต็มกล่อง ปุ่มย้ายลงแถวล่าง · รูปที่แนบขึ้นเป็นแถวด้านบน
-  Widget _inputContent(BuildContext context, PhotoDraftState draft) {
+  Widget _inputContent(BuildContext context, AppStrings t, PhotoDraftState draft) {
     final theme = Theme.of(context);
     final canPick = !draft.picking && draft.photos.length < maxPhotosPerMessage;
     final attach = Row(mainAxisSize: MainAxisSize.min, children: [
       IconButton(
         icon: const Icon(Icons.photo_camera_outlined),
-        tooltip: 'กล้อง',
+        tooltip: t.camera,
         color: theme.colorScheme.onSurfaceVariant,
         onPressed: canPick ? () => _addPhotos(PhotoSource.camera) : null,
       ),
       IconButton(
         icon: const Icon(Icons.photo_library_outlined),
-        tooltip: 'คลังรูป',
+        tooltip: t.gallery,
         color: theme.colorScheme.onSurfaceVariant,
         onPressed: canPick ? () => _addPhotos(PhotoSource.gallery) : null,
       ),
@@ -176,8 +179,8 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
       onTapOutside: (_) => _focus.unfocus(),
-      decoration: const InputDecoration(
-        hintText: 'เล่าอะไรก็ได้…',
+      decoration: InputDecoration(
+        hintText: t.composerHint,
         hintMaxLines: 1,
         // ปิดพื้นและเส้นขอบจากธีม ให้ช่องพิมพ์กลืนไปกับกล่อง
         filled: false,
@@ -185,7 +188,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
         isDense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       ),
     );
     return Column(
@@ -210,14 +213,14 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
             final empty = value.text.trim().isEmpty;
             final expanded = value.text.isNotEmpty;
             final send = _primaryButton(
-                icon: Icons.arrow_upward_rounded, tooltip: 'ส่ง', onPressed: draft.picking ? null : _submitText);
+                icon: Icons.arrow_upward_rounded, tooltip: t.send, onPressed: draft.picking ? null : _submitText);
             final Widget actions = !empty
                 ? send
                 : draft.photos.isEmpty
-                    ? _primaryButton(icon: Icons.mic_rounded, tooltip: 'พูด', onPressed: _startVoice)
+                    ? _primaryButton(icon: Icons.mic_rounded, tooltip: t.speak, onPressed: _startVoice)
                     // มีแต่รูป: ส่งได้เลย หรือจะพูดเล่าประกอบก็ได้
                     : Row(mainAxisSize: MainAxisSize.min, children: [
-                        IconButton(icon: const Icon(Icons.mic_rounded), tooltip: 'พูด', onPressed: _startVoice),
+                        IconButton(icon: const Icon(Icons.mic_rounded), tooltip: t.speak, onPressed: _startVoice),
                         send,
                       ]);
             // ช่องพิมพ์ต้องอยู่ตำแหน่งเดิมใน tree ทั้งสองแบบ ไม่งั้นจะเสียโฟกัสตอนพิมพ์ตัวแรก
@@ -236,19 +239,19 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     );
   }
 
-  Widget _listeningContent(BuildContext context, int seconds) {
+  Widget _listeningContent(BuildContext context, AppStrings t, int seconds) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final left = maxVoiceSeconds - seconds;
     final color = left <= 5 ? scheme.error : scheme.onSurface; // 5 วินาทีสุดท้ายเตือนด้วยสีแดง
     return Row(children: [
-      IconButton(icon: const Icon(Icons.close_rounded), tooltip: 'ยกเลิก', onPressed: _vm.discard),
+      IconButton(icon: const Icon(Icons.close_rounded), tooltip: t.cancel, onPressed: _vm.discard),
       const SizedBox(width: 4),
       Expanded(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('กำลังอัดเสียง…', style: theme.textTheme.titleSmall),
+          Text(t.recording, style: theme.textTheme.titleSmall),
           Text(
-            'เหลือ $left วินาที · ครบแล้วส่งให้เอง',
+            t.recordingLeft(left),
             style: theme.textTheme.bodySmall?.copyWith(color: left <= 5 ? scheme.error : null),
           ),
         ]),
@@ -256,7 +259,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       const SizedBox(width: 8),
       _countdownRing(context, seconds: seconds, color: color),
       const SizedBox(width: 8),
-      _primaryButton(icon: Icons.arrow_upward_rounded, tooltip: 'หยุดและส่ง', onPressed: _end),
+      _primaryButton(icon: Icons.arrow_upward_rounded, tooltip: t.stopAndSend, onPressed: _end),
     ]);
   }
 
@@ -287,12 +290,12 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     );
   }
 
-  Widget _transcribingContent(BuildContext context) {
+  Widget _transcribingContent(BuildContext context, AppStrings t) {
     final theme = Theme.of(context);
     return Row(children: [
-      IconButton(icon: const Icon(Icons.close_rounded), tooltip: 'ยกเลิก', onPressed: _vm.discard),
+      IconButton(icon: const Icon(Icons.close_rounded), tooltip: t.cancel, onPressed: _vm.discard),
       const SizedBox(width: 4),
-      Expanded(child: Text('กำลังถอดเสียงในเครื่อง…', style: theme.textTheme.titleSmall)),
+      Expanded(child: Text(t.transcribing, style: theme.textTheme.titleSmall)),
       const Padding(
         padding: EdgeInsets.all(14),
         child: SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -318,11 +321,12 @@ class _ResultSheet extends ConsumerWidget {
 
   Future<void> _apply(BuildContext context, WidgetRef ref) async {
     final navigator = Navigator.of(context), route = ModalRoute.of(context);
+    final t = ref.read(stringsProvider);
     final result = await ref.read(turnViewModelProvider(request).notifier).apply();
     // ผู้ใช้อาจปิด sheet ไปแล้วระหว่างบันทึก: ห้าม pop ซ้ำ และต้องแจ้ง error ทาง snackbar แทน
     final open = route?.isCurrent ?? false;
     if (result.error == null) {
-      messenger.showSnackBar(SnackBar(content: Text('บันทึกแล้ว ${result.count} รายการ')));
+      messenger.showSnackBar(SnackBar(content: Text(t.savedCount(result.count))));
       if (open) navigator.pop();
     } else if (!open) {
       messenger.showSnackBar(SnackBar(content: Text(result.error!)));
@@ -331,7 +335,8 @@ class _ResultSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final thinking = ref.watch(turnViewModelProvider(request).select((t) => t.thinking));
+    final t = ref.watch(stringsProvider);
+    final thinking = ref.watch(turnViewModelProvider(request).select((turn) => turn.thinking));
     final theme = Theme.of(context);
     // ระหว่าง AI คิด แตะข้างนอก/กดย้อนกลับไม่ปิด ต้องกด "ยกเลิก"
     return PopScope(
@@ -350,12 +355,12 @@ class _ResultSheet extends ConsumerWidget {
                   child: Row(children: [
                     Icon(Icons.auto_awesome_rounded, size: 18, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
-                    Expanded(child: Text('ผู้ช่วยบันทึก', style: theme.textTheme.titleMedium)),
+                    Expanded(child: Text(t.assistantTitle, style: theme.textTheme.titleMedium)),
                     // ระหว่างคิดมีปุ่ม "ยกเลิก" อยู่แล้ว ปุ่มปิดจึงโผล่หลังได้คำตอบ
                     Visibility.maintain(
                       visible: !thinking,
                       child: IconButton(
-                        tooltip: 'ปิด',
+                        tooltip: t.close,
                         icon: const Icon(Icons.close_rounded),
                         onPressed: () => Navigator.pop(context),
                       ),

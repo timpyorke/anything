@@ -34,6 +34,9 @@ abstract class DiaryRepository {
     String? error,
   });
 
-  /// นำเข้าจากไฟล์ export ของระบบเดิม คืนจำนวนที่นำเข้า
+  /// นำเข้าจากไฟล์ export ของระบบเดิม คืนจำนวนที่นำเข้า (ไฟล์ผิดรูปแบบโยน [UnsupportedExportException])
   Future<int> importExport(Map<String, dynamic> data);
 }
+
+/// ไฟล์ที่นำเข้าไม่ใช่ export ของระบบเดิม
+class UnsupportedExportException implements Exception {}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
 import '../../core/utils/dates.dart';
 import '../../core/widgets/category_dot.dart';
 import '../diary/diary_view_model.dart';
@@ -19,6 +20,7 @@ class UpcomingCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final state = ref.watch(diaryViewModelProvider);
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
@@ -35,8 +37,8 @@ class UpcomingCard extends ConsumerWidget {
                   children: [
                     Icon(Icons.event_rounded, size: 18, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
-                    Expanded(child: Text('กำลังจะมาถึง', style: theme.textTheme.titleSmall)),
-                    Text('ทั้งหมด ${view.upcoming.length}', style: theme.textTheme.bodySmall),
+                    Expanded(child: Text(t.upcoming, style: theme.textTheme.titleSmall)),
+                    Text(t.allCount(view.upcoming.length), style: theme.textTheme.bodySmall),
                     Icon(Icons.chevron_right_rounded, size: 20, color: muted),
                   ],
                 ),
@@ -61,7 +63,7 @@ class UpcomingCard extends ConsumerWidget {
                       const SizedBox(width: 12),
                       // อยู่ท้ายแถวและกว้างตามข้อความ ชื่อรายการจึงได้พื้นที่ที่เหลือทั้งหมด
                       Text(
-                        EntryCard.badgeOf(e, view.now) ?? '',
+                        EntryCard.badgeOf(e, view.now, t) ?? '',
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: daysBetween(view.now, e.shownDate(view.now)) <= 7 ? theme.colorScheme.primary : muted,
                         ),

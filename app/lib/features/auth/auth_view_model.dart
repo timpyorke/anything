@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthException;
 
+import '../../app/language.dart';
 import '../../app/providers.dart';
 
 part 'auth_view_model.freezed.dart';
@@ -26,9 +27,10 @@ class AuthViewModel extends Notifier<AuthFormState> {
   void toggleMode() => state = AuthFormState(signUp: !state.signUp);
 
   Future<void> submit(String rawEmail, String password) async {
+    final t = ref.read(stringsProvider);
     final email = rawEmail.trim();
     if (!email.contains('@') || password.length < 8) {
-      state = state.copyWith(error: 'ใส่อีเมล และรหัสผ่านอย่างน้อย 8 ตัวอักษร');
+      state = state.copyWith(error: t.credentialsRequired);
       return;
     }
     state = state.copyWith(busy: true, error: null, info: null);
@@ -37,20 +39,20 @@ class AuthViewModel extends Notifier<AuthFormState> {
     try {
       if (state.signUp) {
         final res = await auth.signUp(email: email, password: password);
-        if (res.session == null) info = 'ส่งอีเมลยืนยันไปที่ $email แล้ว — ยืนยันแล้วกลับมาเข้าสู่ระบบ';
+        if (res.session == null) info = t.confirmationSent(email);
       } else {
         await auth.signInWithPassword(email: email, password: password);
       }
     } on AuthException catch (e) {
       error = switch (e.code) {
-        'invalid_credentials' => 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
-        'email_not_confirmed' => 'ยังไม่ได้ยืนยันอีเมล — ตรวจกล่องจดหมาย',
-        'user_already_exists' => 'อีเมลนี้มีบัญชีแล้ว — เข้าสู่ระบบแทน',
-        'weak_password' => 'รหัสผ่านง่ายเกินไป',
+        'invalid_credentials' => t.invalidCredentials,
+        'email_not_confirmed' => t.emailNotConfirmed,
+        'user_already_exists' => t.userAlreadyExists,
+        'weak_password' => t.weakPassword,
         _ => e.message,
       };
     } catch (e) {
-      error = 'เชื่อมต่อไม่ได้: $e';
+      error = t.connectionFailed(e);
     }
     state = state.copyWith(busy: false, error: error, info: info);
   }

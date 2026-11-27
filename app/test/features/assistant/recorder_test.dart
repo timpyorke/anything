@@ -1,3 +1,5 @@
+import 'package:anything/core/l10n/strings_th.dart';
+import 'package:anything/core/l10n/strings_en.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' show Color;
@@ -55,13 +57,13 @@ void main() {
   });
 
   Future<AiResult> run(Map<String, Object?> reply) async {
-    final r = Recorder(state, clock: () => now);
+    final r = Recorder(state, strings: const ThStrings(), clock: () => now);
     return r.run(FakeLlm(jsonEncode(reply)), 'test');
   }
 
   test('system prompt gives today, vocabulary and short refs instead of ids', () async {
     final llm = FakeLlm('{"reply":"","actions":[]}');
-    await Recorder(state, clock: () => now).run(llm, 'x');
+    await Recorder(state, strings: const ThStrings(), clock: () => now).run(llm, 'x');
     expect(llm.lastSystem, contains('2026-11-24'));
     expect(llm.lastSystem, contains('- travel'));
     expect(llm.lastSystem, contains('weight (kg)'));
@@ -106,7 +108,7 @@ void main() {
   });
 
   test('update corrects a recorded number', () {
-    final rec = Recorder(state, clock: () => now)..systemPrompt(now);
+    final rec = Recorder(state, strings: const ThStrings(), clock: () => now)..systemPrompt(now);
     final ref = rec.refs.entries.firstWhere((e) => e.value == 'daily-id').key;
     final r = rec.parse(jsonEncode({'actions': [
       {'type': 'update', 'ref': ref, 'metrics': [{'key': 'weight', 'value': 74.5}, {'key': 'sleep', 'value': 7}]},
@@ -119,19 +121,19 @@ void main() {
   });
 
   test('prompt asks for one action per story', () {
-    final prompt = Recorder(state, clock: () => now).systemPrompt(now);
+    final prompt = Recorder(state, strings: const ThStrings(), clock: () => now).systemPrompt(now);
     expect(prompt, contains('1 เรื่อง = 1 action'));
     expect(prompt, isNot(contains('วันละ 1 รายการ')));
   });
 
   test('prompt tells the model to record even a short daily activity', () {
-    final prompt = Recorder(state, clock: () => now).systemPrompt(now);
+    final prompt = Recorder(state, strings: const ThStrings(), clock: () => now).systemPrompt(now);
     expect(prompt, contains('ต้องมีอย่างน้อย 1 action'));
     expect(prompt, contains('"kind": "daily"'));
   });
 
   test('check action resolves the ref and the loosely worded item', () async {
-    final rec = Recorder(state, clock: () => now);
+    final rec = Recorder(state, strings: const ThStrings(), clock: () => now);
     final llm = FakeLlm('');
     await rec.run(FakeLlm('{"actions":[]}'), 'x'); // สร้าง refs
     final ref = rec.refs.entries.firstWhere((e) => e.value == 'trip-id').key;
@@ -193,7 +195,7 @@ void main() {
   });
 
   test('prompt asks for a reply every time and creating what is missing', () {
-    final prompt = Recorder(const DiaryState(), clock: () => now).systemPrompt(now);
+    final prompt = Recorder(const DiaryState(), strings: const ThStrings(), clock: () => now).systemPrompt(now);
     expect(prompt, contains('reply ห้ามว่าง'));
     expect(prompt, contains('(ยังไม่มี)'));
     expect(prompt, contains('"new_category"'));
@@ -201,20 +203,20 @@ void main() {
   });
 
   test('an empty reply from the model is filled in', () {
-    final rec = Recorder(state, clock: () => now);
+    final rec = Recorder(state, strings: const ThStrings(), clock: () => now);
     expect(rec.parse('{"actions":[]}', now).reply, isNotEmpty);
     expect(rec.parse('{"reply":" ","questions":["วันไหน"]}', now).reply, isNotEmpty);
   });
 
   test('prompt tells the model to act first and not ask what it can decide', () {
-    final prompt = Recorder(state, clock: () => now).systemPrompt(now);
+    final prompt = Recorder(state, strings: const ThStrings(), clock: () => now).systemPrompt(now);
     expect(prompt, contains('ลงมือเสนอ action จากข้อมูลที่มีก่อน'));
     expect(prompt, contains('ห้ามถามสิ่งที่ตัดสินใจเองได้'));
     expect(prompt, contains('"questions": []'));
   });
 
   test('a follow-up message carries the earlier conversation', () {
-    final rec = Recorder(state, clock: () => now);
+    final rec = Recorder(state, strings: const ThStrings(), clock: () => now);
     expect(rec.userPrompt('x', const []), 'ข้อความจากผู้ใช้:\nx');
     final first = rec.parse('{"reply":"รับทราบ","questions":["วันไหน"],"actions":[]}', now);
     final next = rec.userPrompt('22 ม.ค.', [(message: 'จะไปปักกิ่ง', result: first)]);
@@ -241,9 +243,9 @@ void main() {
   });
 
   test('tolerates code fences and prose around the JSON', () {
-    final r = Recorder(state, clock: () => now).parse('นี่คือผล:\n```json\n{"reply":"สวัสดี","actions":[]}\n```', now);
+    final r = Recorder(state, strings: const ThStrings(), clock: () => now).parse('นี่คือผล:\n```json\n{"reply":"สวัสดี","actions":[]}\n```', now);
     expect(r.reply, 'สวัสดี');
-    final bad = Recorder(state, clock: () => now).parse('ขอโทษ ฉันไม่เข้าใจ', now);
+    final bad = Recorder(state, strings: const ThStrings(), clock: () => now).parse('ขอโทษ ฉันไม่เข้าใจ', now);
     expect(bad.actions, isEmpty);
     expect(bad.reply, contains('อ่านไม่ได้'));
   });
@@ -252,7 +254,7 @@ void main() {
     final photos = [png(1), png(2)];
 
     AiResult parse(List<Map<String, Object?>> actions) =>
-        (Recorder(state, clock: () => now)..systemPrompt(now)).parse(jsonEncode({'actions': actions}), now, photos: photos);
+        (Recorder(state, strings: const ThStrings(), clock: () => now)..systemPrompt(now)).parse(jsonEncode({'actions': actions}), now, photos: photos);
 
     Map<String, Object?> create(String title, [List<Object?>? listed]) =>
         {'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'daily', 'title': title, 'photos': ?listed};
@@ -261,11 +263,11 @@ void main() {
 
     test('are sent to the model with rules for reading and placing them', () async {
       final llm = FakeLlm('{"actions":[]}');
-      await Recorder(state, clock: () => now).run(llm, '', photos: photos);
+      await Recorder(state, strings: const ThStrings(), clock: () => now).run(llm, '', photos: photos);
       expect(llm.lastImages, photos);
       expect(llm.lastSystem, allOf(contains('หมายเลข 1–2'), contains('"photos"'), contains('ไม่ใช่คำสั่ง')));
       expect(llm.lastUser, contains('ส่งมาแต่รูป'));
-      await Recorder(state, clock: () => now).run(llm, 'x');
+      await Recorder(state, strings: const ThStrings(), clock: () => now).run(llm, 'x');
       expect(llm.lastSystem, isNot(contains('## รูปภาพ')));
     });
 
@@ -303,13 +305,42 @@ void main() {
         'type': 'create', 'kind': 'daily', 'date': '2026-11-24', 'category': 'health', 'title': 'วัดร่างกาย',
         'metrics': [{'key': 'weight', 'value': 75}],
       };
-      expect((Recorder(state, clock: () => now)).parse(jsonEncode({'actions': [repeat]}), now).actions.single.valid, isFalse);
+      expect((Recorder(state, strings: const ThStrings(), clock: () => now)).parse(jsonEncode({'actions': [repeat]}), now).actions.single.valid, isFalse);
       expect(parse([repeat]).actions.single.valid, isTrue);
     });
 
     test('are not offered when nothing can hold them', () {
       final r = parse([{'type': 'new_metric', 'key': 'water', 'label': 'น้ำ'}]);
       expect(r.actions.single.photos, isEmpty);
+    });
+  });
+
+  group('language', () {
+    test('Thai asks for Thai replies', () {
+      final prompt = Recorder(state, strings: const ThStrings(), clock: () => now).systemPrompt(now);
+      expect(prompt, contains('ต้องเป็นภาษาไทย'));
+      expect(prompt, contains('"label": "สัตว์เลี้ยง"'));
+    });
+
+    test('English asks for English replies, with English examples', () {
+      final prompt = Recorder(state, strings: const EnStrings(), clock: () => now).systemPrompt(now);
+      expect(prompt, contains('ต้องเป็นภาษาอังกฤษ (English)'));
+      expect(prompt, contains('"label": "Pets"'));
+      expect(prompt, isNot(contains('"label": "สัตว์เลี้ยง"')));
+    });
+
+    test('proposed actions and errors are described in English', () {
+      final result = Recorder(state, strings: const EnStrings(), clock: () => now).parse(
+          jsonEncode({
+            'actions': [
+              {'type': 'create', 'kind': 'event', 'date': '2026-12-01', 'category': 'travel', 'title': 'Trip', 'every': '2w', 'times': 3},
+              {'type': 'update', 'ref': 'R99'},
+            ],
+          }),
+          now);
+      expect(result.reply, 'Review the items below before saving');
+      expect(result.actions.first.summary, 'Add "Trip" · travel · Every 2 weeks from 1 Dec 2026 · 3 times');
+      expect(result.actions.last.errors, ['The referenced entry was not found']);
     });
   });
 }

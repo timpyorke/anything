@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
 import '../../core/utils/dates.dart';
 import '../../core/widgets/category_dot.dart';
 import '../../core/widgets/stat_tile.dart';
@@ -17,6 +18,7 @@ class OverviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final s = ref.watch(diaryViewModelProvider);
     final st = ref.watch(overviewStatsProvider);
     final filter = ref.read(timelineFilterProvider.notifier);
@@ -35,7 +37,7 @@ class OverviewPage extends ConsumerWidget {
         );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ภาพรวม')),
+      appBar: AppBar(title: Text(t.overview)),
       body: ListView(
         padding: EdgeInsets.fromLTRB(Insets.page, 4, Insets.page, 32 + MediaQuery.paddingOf(context).bottom),
         children: [
@@ -43,18 +45,18 @@ class OverviewPage extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 12),
               child: Text(
-                'อายุ ${st.age} ปี',
+                t.age(st.age!),
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
           pair(
-            StatTile(icon: Icons.event_available_rounded, value: '${st.pastDays} วัน', label: 'วันที่มีบันทึก (พ.ศ. ${be(year)})'),
-            StatTile(icon: Icons.local_fire_department_outlined, value: '${st.bestStreak} วัน', label: 'บันทึกต่อเนื่องนานสุด'),
+            StatTile(icon: Icons.event_available_rounded, value: t.dayCount(st.pastDays), label: t.daysLogged(t.yearLabel(year))),
+            StatTile(icon: Icons.local_fire_department_outlined, value: t.dayCount(st.bestStreak), label: t.bestStreak),
           ),
           const SizedBox(height: 8),
           pair(
-            StatTile(icon: Icons.notes_rounded, value: '${st.totalEntries}', label: 'รายการทั้งหมด'),
-            StatTile(icon: Icons.upcoming_outlined, value: '${st.plannedDays} วัน', label: 'มีแผนล่วงหน้า'),
+            StatTile(icon: Icons.notes_rounded, value: '${st.totalEntries}', label: t.totalEntries),
+            StatTile(icon: Icons.upcoming_outlined, value: t.dayCount(st.plannedDays), label: t.plannedAhead),
           ),
           const SizedBox(height: 16),
           Card(
@@ -69,13 +71,13 @@ class OverviewPage extends ConsumerWidget {
                       alignment: WrapAlignment.spaceBetween,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text('ปฏิทินกิจกรรม', style: theme.textTheme.titleMedium),
+                        Text(t.activityCalendar, style: theme.textTheme.titleMedium),
                         DropdownButton<int>(
                           value: year,
                           underline: const SizedBox(),
                           style: theme.textTheme.labelLarge,
                           borderRadius: BorderRadius.circular(Corners.control),
-                          items: [for (final y in years) DropdownMenuItem(value: y, child: Text('พ.ศ. ${be(y)}'))],
+                          items: [for (final y in years) DropdownMenuItem(value: y, child: Text(t.yearLabel(y)))],
                           onChanged: ref.read(overviewYearProvider.notifier).select,
                         ),
                       ],
@@ -96,7 +98,7 @@ class OverviewPage extends ConsumerWidget {
                   const SizedBox(height: 10),
                   const HeatmapLegend(),
                   const SizedBox(height: 4),
-                  Text('แตะวันที่มีสีเพื่อดูบันทึกของวันนั้น', style: theme.textTheme.bodySmall),
+                  Text(t.tapDayHint, style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -109,7 +111,7 @@ class OverviewPage extends ConsumerWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
-                    child: Text('แยกตามหมวด', style: theme.textTheme.titleMedium),
+                    child: Text(t.byCategory, style: theme.textTheme.titleMedium),
                   ),
                   for (final c in cats)
                     InkWell(

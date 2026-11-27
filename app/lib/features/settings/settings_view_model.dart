@@ -7,6 +7,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
+import '../../app/language.dart';
+import '../../domain/repositories/diary_repository.dart';
 import '../diary/diary_view_model.dart';
 
 part 'settings_view_model.freezed.dart';
@@ -45,12 +47,13 @@ class SettingsViewModel extends Notifier<SettingsState> {
 
   Future<void> downloadGemma() async {
     final link = ref.keepAlive();
+    final t = ref.read(stringsProvider);
     state = state.copyWith(progress: 0, gemmaError: null);
     try {
       await OnDeviceProvider.install(onProgress: (p) => state = state.copyWith(progress: p));
       state = state.copyWith(gemmaInstalled: true);
     } catch (e) {
-      state = state.copyWith(gemmaError: 'ดาวน์โหลดไม่สำเร็จ: $e');
+      state = state.copyWith(gemmaError: t.downloadFailed(e));
     } finally {
       state = state.copyWith(progress: null);
       link.close();
@@ -66,20 +69,23 @@ class SettingsViewModel extends Notifier<SettingsState> {
     state = state.copyWith(notice: null);
     await ref.read(aiSettingsProvider.notifier).setKey(kind, key);
     if (!ref.mounted) return;
-    state = state.copyWith(notice: 'บันทึก API key แล้ว (เก็บในเครื่องเท่านั้น)');
+    state = state.copyWith(notice: ref.read(stringsProvider).apiKeySaved);
   }
 
   /// นำเข้าไฟล์ export ของระบบเดิม ผลสรุปอยู่ที่ state.notice
   Future<void> importFile(Uint8List bytes) async {
     final link = ref.keepAlive();
+    final t = ref.read(stringsProvider);
     state = state.copyWith(importing: true, notice: null);
     String notice;
     try {
       final data = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
       final n = await ref.read(diaryViewModelProvider.notifier).importExport(data);
-      notice = n == 0 ? 'ไม่มีรายการใหม่ (นำเข้าครบแล้ว)' : 'นำเข้าแล้ว $n รายการ';
+      notice = n == 0 ? t.nothingToImport : t.importedCount(n);
+    } on UnsupportedExportException {
+      notice = t.importFailed(t.unsupportedExport);
     } catch (e) {
-      notice = 'นำเข้าไม่สำเร็จ: $e';
+      notice = t.importFailed(e);
     }
     state = state.copyWith(importing: false, notice: notice);
     link.close();

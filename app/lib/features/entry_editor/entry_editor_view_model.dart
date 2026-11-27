@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../app/language.dart';
 import '../../app/providers.dart';
 import '../../core/utils/dates.dart';
 import '../../data/photo_picker.dart';
@@ -72,7 +73,7 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
     if (state.picking || state.saving) return;
     state = state.copyWith(picking: true, notice: null);
     final room = maxPhotosPerEntry - state.entry.photos.length;
-    final picked = await pickPhotos(ref.read(photoPickerProvider), source, room: room);
+    final picked = await pickPhotos(ref.read(photoPickerProvider), source, room: room, strings: ref.read(stringsProvider));
     if (!ref.mounted) return;
     state = state.copyWith(
       picking: false,
@@ -107,7 +108,8 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
       ],
     );
     if (out.isDaily) out = out.copyWith(endDate: null);
-    final errors = diary.validate(out);
+    final t = ref.read(stringsProvider);
+    final errors = diary.validate(out, t);
     state = state.copyWith(errors: errors);
     if (errors.isNotEmpty) return;
     state = state.copyWith(saving: true);
@@ -120,17 +122,18 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
       await ref.read(diaryViewModelProvider.notifier).save(out, removedPhotos: removed);
       if (ref.mounted) state = state.copyWith(exit: EditorExit.saved, saving: false);
     } catch (err) {
-      if (ref.mounted) state = state.copyWith(errors: ['บันทึกไม่สำเร็จ: $err'], saving: false);
+      if (ref.mounted) state = state.copyWith(errors: [t.saveFailed(err)], saving: false);
     }
   }
 
   Future<void> delete() async {
+    final t = ref.read(stringsProvider);
     state = state.copyWith(saving: true, errors: const []);
     try {
       await ref.read(diaryViewModelProvider.notifier).delete(state.entry);
       if (ref.mounted) state = state.copyWith(exit: EditorExit.deleted, saving: false);
     } catch (err) {
-      if (ref.mounted) state = state.copyWith(errors: ['ลบไม่สำเร็จ: $err'], saving: false);
+      if (ref.mounted) state = state.copyWith(errors: [t.deleteFailed(err)], saving: false);
     }
   }
 }

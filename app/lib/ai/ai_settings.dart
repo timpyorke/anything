@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:http/http.dart' as http;
 
+import '../app/language.dart';
 import '../app/providers.dart';
 import 'ai_studio_provider.dart';
 import 'anthropic_provider.dart';
@@ -55,10 +56,12 @@ final aiModelsProvider =
   final userId = ref.watch(currentUserIdProvider);
   final key = userId == null ? null : await storage.read(key: aiKeyName(kind, userId));
   if (key == null || key.isEmpty) return const [];
+  final strings = ref.read(stringsProvider);
   return switch (kind) {
-    AiProviderKind.aiStudio => AiStudioProvider.listModels(key, client: client),
-    AiProviderKind.anthropic => AnthropicProvider.listModels(key, client: client),
-    AiProviderKind.openAi || AiProviderKind.openRouter => OpenAiProvider.listModels(kind, key, client: client),
+    AiProviderKind.aiStudio => AiStudioProvider.listModels(key, strings: strings, client: client),
+    AiProviderKind.anthropic => AnthropicProvider.listModels(key, strings: strings, client: client),
+    AiProviderKind.openAi || AiProviderKind.openRouter =>
+      OpenAiProvider.listModels(kind, key, strings: strings, client: client),
     AiProviderKind.onDevice => const [],
   };
 });
@@ -143,14 +146,17 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
   /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด)
   Future<LlmProvider?> resolveProvider() async {
     final kind = state.provider;
-    if (!kind.isCloud) return await OnDeviceProvider.isInstalled() ? OnDeviceProvider() : null;
+    final strings = ref.read(stringsProvider);
+    if (!kind.isCloud) return await OnDeviceProvider.isInstalled() ? OnDeviceProvider(strings: strings) : null;
     final key = await _readKey(kind);
     if (key == null || key.isEmpty) return null;
     final model = state.modelFor(kind);
     return switch (kind) {
-      AiProviderKind.aiStudio => AiStudioProvider(apiKey: key, model: model),
-      AiProviderKind.anthropic => AnthropicProvider(apiKey: key, model: model),
-      AiProviderKind.openAi || AiProviderKind.openRouter => OpenAiProvider(kind: kind, apiKey: key, model: model),
+      AiProviderKind.aiStudio => AiStudioProvider(apiKey: key, model: model, strings: strings),
+      AiProviderKind.anthropic => AnthropicProvider(apiKey: key, model: model, strings: strings),
+      AiProviderKind.openAi ||
+      AiProviderKind.openRouter =>
+        OpenAiProvider(kind: kind, apiKey: key, model: model, strings: strings),
       AiProviderKind.onDevice => null,
     };
   }

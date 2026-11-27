@@ -31,31 +31,5 @@ DateTime addMonths(DateTime d, int n) {
   return DateTime.utc(y, m, d.day.clamp(1, daysInMonth(y, m)));
 }
 
-const thMonthsShort = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-const thMonthsLong = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-const thWeekdays = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'];
-
-int be(int year) => year + 543;
-
-String fmtDay(DateTime d) => '${d.day} ${thMonthsShort[d.month - 1]}';
-String fmtDate(DateTime d) => '${d.day} ${thMonthsShort[d.month - 1]} ${be(d.year)}';
-String fmtMonthYear(DateTime d) => '${thMonthsLong[d.month - 1]} ${be(d.year)}';
-
-String fmtRange(DateTime start, DateTime? end) {
-  if (end == null) return fmtDay(start);
-  return start.year == end.year ? '${fmtDay(start)} – ${fmtDay(end)}' : '${fmtDate(start)} – ${fmtDate(end)}';
-}
-
-/// ป้ายเวลาเทียบกับวันนี้ ('พรุ่งนี้', 'อีก 5 วัน') หรือ null ถ้าผ่านไปแล้ว
-String? relativeLabel(DateTime start, DateTime last, DateTime now, {bool isRange = false}) {
-  if (start.isAfter(now)) {
-    final n = daysBetween(now, start);
-    if (n == 1) return 'พรุ่งนี้';
-    return n > 60 ? 'อีก ~${(n / 30).round()} เดือน' : 'อีก $n วัน';
-  }
-  if (!last.isBefore(now)) return isRange ? 'กำลังดำเนินอยู่' : 'วันนี้';
-  return null;
-}
-
 int ageOn(DateTime born, DateTime now) =>
     now.year - born.year - ((now.month < born.month || (now.month == born.month && now.day < born.day)) ? 1 : 0);

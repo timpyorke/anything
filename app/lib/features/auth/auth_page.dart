@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
 import '../../core/widgets/notice_box.dart';
 import '../../core/widgets/section.dart';
 import 'auth_view_model.dart';
@@ -29,6 +30,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(stringsProvider);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final st = ref.watch(authViewModelProvider);
@@ -55,12 +57,12 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   ),
                   const SizedBox(height: 16),
                   Text('Anything ~ diaries', textAlign: TextAlign.center, style: theme.textTheme.headlineSmall),
-                  Text('บันทึกชีวิตด้วย AI',
+                  Text(t.appTagline,
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),
                   const SizedBox(height: 32),
                   Labeled(
-                    'อีเมล',
+                    t.email,
                     child: TextField(
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,
@@ -72,16 +74,16 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                   ),
                   const SizedBox(height: 16),
                   Labeled(
-                    'รหัสผ่าน',
+                    t.password,
                     child: TextField(
                       controller: _password,
                       obscureText: !_showPassword,
                       textInputAction: TextInputAction.done,
                       autofillHints: [st.signUp ? AutofillHints.newPassword : AutofillHints.password],
                       decoration: InputDecoration(
-                        hintText: 'อย่างน้อย 8 ตัวอักษร',
+                        hintText: t.passwordHint,
                         suffixIcon: IconButton(
-                          tooltip: _showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน',
+                          tooltip: _showPassword ? t.hidePassword : t.showPassword,
                           icon: Icon(_showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                           onPressed: () => setState(() => _showPassword = !_showPassword),
                         ),
@@ -97,12 +99,12 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                     onPressed: st.busy ? null : _submit,
                     child: st.busy
                         ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Text(st.signUp ? 'สร้างบัญชี' : 'เข้าสู่ระบบ'),
+                        : Text(st.signUp ? t.createAccount : t.signIn),
                   ),
                   const SizedBox(height: 4),
                   TextButton(
                     onPressed: st.busy ? null : ref.read(authViewModelProvider.notifier).toggleMode,
-                    child: Text(st.signUp ? 'มีบัญชีแล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชี? สร้างบัญชี'),
+                    child: Text(st.signUp ? t.switchToSignIn : t.switchToSignUp),
                   ),
                 ]),
               ),

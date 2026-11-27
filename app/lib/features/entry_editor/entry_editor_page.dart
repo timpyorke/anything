@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
 import '../../core/utils/dates.dart';
 import '../../core/widgets/category_dot.dart';
 import '../../core/widgets/confirm_dialog.dart';
@@ -105,19 +106,21 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
     if (exit == EditorExit.deleted) {
       final entry = ref.read(entryEditorViewModelProvider(_args)).entry;
       final diary = ref.read(diaryViewModelProvider.notifier);
-      showDeletedSnackBar(ScaffoldMessenger.of(context), diary, entry);
+      showDeletedSnackBar(ScaffoldMessenger.of(context), diary, entry, ref.read(stringsProvider));
     }
     Navigator.pop(context, true);
   }
 
   Future<void> _delete() async {
     final e = ref.read(entryEditorViewModelProvider(_args)).entry;
-    final name = e.title.isEmpty ? fmtDate(e.date) : e.title;
+    final t = ref.read(stringsProvider);
+    final name = e.title.isEmpty ? t.fmtDate(e.date) : e.title;
     final ok = await confirmAction(
       context,
-      title: 'ลบรายการนี้?',
-      message: e.recurrence == null ? name : '$name\nรายการที่เกิดซ้ำจะถูกลบทั้งชุด',
-      confirmLabel: 'ลบ',
+      title: t.deleteEntryTitle,
+      message: e.recurrence == null ? name : '$name\n${t.deleteSeriesWarning}',
+      cancelLabel: t.cancel,
+      confirmLabel: t.delete,
     );
     if (ok) await _vm.delete();
   }
@@ -125,12 +128,13 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
   Future<void> _confirmDiscard() async {
     // จับ navigator ไว้ก่อน await
     final nav = Navigator.of(context);
+    final t = ref.read(stringsProvider);
     final ok = await confirmAction(
       context,
-      title: 'ทิ้งการแก้ไข?',
-      message: 'สิ่งที่แก้ไว้ยังไม่ได้บันทึก',
-      cancelLabel: 'แก้ต่อ',
-      confirmLabel: 'ทิ้ง',
+      title: t.discardTitle,
+      message: t.discardMessage,
+      cancelLabel: t.keepEditing,
+      confirmLabel: t.discard,
     );
     if (ok) nav.pop();
   }
@@ -158,6 +162,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
   }
 
   Widget _form(BuildContext context, EntryEditorState st) {
+    final t = ref.watch(stringsProvider);
     final s = ref.watch(diaryViewModelProvider);
     final e = st.entry, vm = _vm;
     final theme = Theme.of(context);
@@ -166,7 +171,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
     final until = e.recurrence?.until;
     const gap = SizedBox(height: 20);
     final date = Labeled(
-      st.every != null ? 'เริ่ม' : 'วันที่',
+      st.every != null ? t.startDate : t.date,
       child: _DateField(
         value: e.date,
         onTap: () async {
@@ -177,7 +182,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
     );
     final endDate = !e.isDaily && st.every == null
         ? Labeled(
-            'ถึง (ถ้ามี)',
+            t.endDateOptional,
             child: _DateField(
               value: e.endDate,
               onClear: e.endDate == null ? null : () => vm.setEndDate(null),
@@ -191,11 +196,11 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
         : null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(st.isNew ? (st.draft ? 'ตรวจก่อนบันทึก' : 'เพิ่มบันทึก') : 'แก้ไข'),
+        title: Text(st.isNew ? (st.draft ? t.reviewEntry : t.newEntry) : t.edit),
         actions: [
           if (!st.isNew)
             IconButton(
-              tooltip: 'ลบ',
+              tooltip: t.delete,
               icon: Icon(Icons.delete_outline_rounded, color: theme.colorScheme.error),
               onPressed: st.saving ? null : _delete,
             ),
@@ -210,33 +215,33 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
             children: [
               SegmentedButton<String>(
                 showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: 'event', label: Text('เหตุการณ์')),
-                  ButtonSegment(value: 'daily', label: Text('บันทึกรายวัน')),
+                segments: [
+                  ButtonSegment(value: 'event', label: Text(t.kindEvent)),
+                  ButtonSegment(value: 'daily', label: Text(t.kindDaily)),
                 ],
                 selected: {e.kind},
                 onSelectionChanged: (v) => vm.setKind(v.first),
               ),
               gap,
               Labeled(
-                'ชื่อ',
+                t.titleField,
                 child: TextField(
                   controller: _title,
                   textInputAction: TextInputAction.next,
                   style: theme.textTheme.titleMedium,
-                  decoration: const InputDecoration(hintText: 'เกิดอะไรขึ้น'),
+                  decoration: InputDecoration(hintText: t.titleHint),
                 ),
               ),
               gap,
               Labeled(
-                'รายละเอียด',
+                t.details,
                 child: TextField(
                   controller: _body,
                   minLines: 3,
                   maxLines: 12,
-                  decoration: const InputDecoration(
-                    hintText: 'เล่าต่อได้เลย',
-                    helperText: 'ขึ้นต้น “- ” เป็นรายการ, “- [ ] ” เป็นช่องติ๊ก, **ข้อความ** เป็นตัวหนา',
+                  decoration: InputDecoration(
+                    hintText: t.detailsHint,
+                    helperText: t.markdownHelp,
                     helperMaxLines: 3,
                   ),
                 ),
@@ -255,7 +260,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                 ]),
               gap,
               Labeled(
-                'หมวด',
+                t.category,
                 child: Wrap(spacing: 8, runSpacing: 4, children: [
                   for (final c in s.categories)
                     ChoiceChip(
@@ -268,7 +273,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
               ),
               gap,
               Labeled(
-                'รูปภาพ',
+                t.photos,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if (e.photos.isNotEmpty)
                     Padding(
@@ -276,9 +281,9 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                       child: PhotoStrip(e.photos, size: 88, onRemove: st.saving ? null : (i) => vm.removePhoto(e.photos[i])),
                     ),
                   Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    for (final (source, icon, label) in const [
-                      (PhotoSource.camera, Icons.photo_camera_outlined, 'ถ่ายรูป'),
-                      (PhotoSource.gallery, Icons.photo_library_outlined, 'คลังรูป'),
+                    for (final (source, icon, label) in [
+                      (PhotoSource.camera, Icons.photo_camera_outlined, t.takePhoto),
+                      (PhotoSource.gallery, Icons.photo_library_outlined, t.gallery),
                     ])
                       OutlinedButton.icon(
                         onPressed: st.saving || st.picking || e.photos.length >= maxPhotosPerEntry ? null : () => vm.addPhotos(source),
@@ -292,7 +297,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
               ),
               gap,
               Labeled(
-                'ตัวเลข',
+                t.numbers,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   for (var i = 0; i < _metricCtrls.length; i++)
                     Padding(
@@ -313,7 +318,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                           ),
                         ),
                         IconButton(
-                          tooltip: 'เอาออก',
+                          tooltip: t.removeNumber,
                           icon: const Icon(Icons.remove_circle_outline_rounded),
                           onPressed: () => setState(() => _metricCtrls.removeAt(i).$2.dispose()),
                         ),
@@ -321,7 +326,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                     ),
                   if (freeMetrics.isNotEmpty)
                     PopupMenuButton<String>(
-                      tooltip: 'เพิ่มตัวเลข',
+                      tooltip: t.addNumber,
                       onSelected: (k) => setState(() => _metricCtrls.add((k, TextEditingController()))),
                       itemBuilder: (_) => [for (final m in freeMetrics) PopupMenuItem(value: m.key, child: Text('${m.label} ${m.unit}'.trim()))],
                       child: Padding(
@@ -329,7 +334,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Icon(Icons.add_rounded, color: theme.colorScheme.primary),
                           const SizedBox(width: 6),
-                          Text('เพิ่มตัวเลข', style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
+                          Text(t.addNumber, style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary)),
                         ]),
                       ),
                     ),
@@ -338,7 +343,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
               if (!e.isDaily) ...[
                 gap,
                 Labeled(
-                  'เกิดซ้ำ',
+                  t.repeats,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Wrap(spacing: 8, runSpacing: 4, children: [
                       for (final value in [
@@ -351,7 +356,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                         if (_initial.every != null && !Recurrence.words.containsKey(_initial.every)) _initial.every,
                       ])
                         ChoiceChip(
-                          label: Text(value == null ? 'ไม่เกิดซ้ำ' : Recurrence(value).label),
+                          label: Text(value == null ? t.noRepeat : t.recurrenceLabel(Recurrence(value))),
                           selected: st.every == value,
                           onSelected: (_) => vm.setEvery(value),
                         ),
@@ -362,17 +367,17 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                         controller: _times,
                         keyboardType: TextInputType.number,
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        decoration: const InputDecoration(
-                          hintText: 'ไม่จำกัด',
-                          prefixIcon: Icon(Icons.repeat_rounded),
-                          suffixText: 'ครั้ง',
+                        decoration: InputDecoration(
+                          hintText: t.unlimited,
+                          prefixIcon: const Icon(Icons.repeat_rounded),
+                          suffixText: t.timesSuffix,
                         ),
                       ),
                       if (until != null) ...[
                         const SizedBox(height: 8),
                         InputChip(
-                          label: Text('สิ้นสุด ${fmtDate(until)}'),
-                          deleteButtonTooltipMessage: 'เอาวันสิ้นสุดออก',
+                          label: Text(t.endsOn(t.fmtDate(until))),
+                          deleteButtonTooltipMessage: t.removeEndDate,
                           onDeleted: vm.clearUntil,
                         ),
                       ],
@@ -382,7 +387,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
               ],
               if (e.legacyRef != null) ...[
                 gap,
-                Text('นำเข้าจาก ${e.legacyRef}', style: theme.textTheme.bodySmall),
+                Text(t.importedFrom(e.legacyRef!), style: theme.textTheme.bodySmall),
               ],
             ],
           ),
@@ -406,7 +411,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
                   onPressed: st.saving || st.picking ? null : _save,
                   child: st.saving
                       ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('บันทึก'),
+                      : Text(t.save),
                 ),
               ]),
             ),
@@ -417,14 +422,16 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
   }
 }
 
-class _DateField extends StatelessWidget {
+class _DateField extends ConsumerWidget {
   const _DateField({required this.value, required this.onTap, this.onClear});
   final DateTime? value;
   final VoidCallback onTap;
   final VoidCallback? onClear;
 
   @override
-  Widget build(BuildContext context) => InkWell(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
+    return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(Corners.control),
         child: InputDecorator(
@@ -432,12 +439,13 @@ class _DateField extends StatelessWidget {
             contentPadding: const EdgeInsets.only(left: 14),
             suffixIcon: onClear == null
                 ? const Icon(Icons.calendar_today_rounded, size: 18)
-                : IconButton(tooltip: 'ล้างวันที่', icon: const Icon(Icons.close_rounded, size: 18), onPressed: onClear),
+                : IconButton(tooltip: t.clearDate, icon: const Icon(Icons.close_rounded, size: 18), onPressed: onClear),
           ),
           child: Text(
-            value == null ? 'เลือกวันที่' : fmtDate(value!),
+            value == null ? t.pickDate : t.fmtDate(value!),
             style: value == null ? TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
           ),
         ),
       );
+  }
 }

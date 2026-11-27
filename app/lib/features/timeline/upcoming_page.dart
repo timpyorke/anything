@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/utils/dates.dart';
+import '../../app/language.dart';
 import '../../core/widgets/empty_state.dart';
 import 'entry_section.dart';
 import 'timeline_view_model.dart';
@@ -12,21 +12,22 @@ class UpcomingPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final view = ref.watch(timelineViewProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('กำลังจะมาถึง')),
+      appBar: AppBar(title: Text(t.upcoming)),
       body: view.upcoming.isEmpty
-          ? const EmptyState(
+          ? EmptyState(
               icon: Icons.event_available_rounded,
-              text: 'ไม่มีรายการล่วงหน้า',
-              detail: 'นัดหมายหรือแผนที่บันทึกไว้จะแสดงที่นี่',
+              text: t.noUpcoming,
+              detail: t.noUpcomingDetail,
             )
           : CustomScrollView(
               slivers: [
                 for (final MapEntry(key: month, value: items) in view.upcomingByMonth.entries)
                   EntrySection(
-                    title: thMonthsLong[month.month - 1],
-                    subtitle: 'พ.ศ. ${be(month.year)}',
+                    title: t.monthsLong[month.month - 1],
+                    subtitle: t.yearLabel(month.year),
                     items: items,
                     now: view.now,
                   ),

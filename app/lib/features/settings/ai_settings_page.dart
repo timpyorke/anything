@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/section.dart';
 import 'local_model_page.dart';
@@ -39,28 +41,31 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
 
   Future<void> _deleteKey(AiProviderKind kind) async {
     final aiVm = ref.read(aiSettingsProvider.notifier);
+    final t = ref.read(stringsProvider);
     final ok = await confirmAction(
       context,
-      title: 'ลบ API key?',
-      message: 'key ของ ${kind.label} จะถูกลบจากเครื่องนี้ ต้องใส่ใหม่ถ้าจะใช้อีก',
-      confirmLabel: 'ลบ',
+      title: t.deleteKeyTitle,
+      message: t.deleteKeyMessage(kind.label),
+      cancelLabel: t.cancel,
+      confirmLabel: t.delete,
     );
     if (ok) await aiVm.setKey(kind, null);
   }
 
   Future<void> _copyKeyUrl(String url) async {
     final messenger = ScaffoldMessenger.of(context);
+    final t = ref.read(stringsProvider);
     await Clipboard.setData(ClipboardData(text: 'https://$url'));
-    messenger.showSnackBar(const SnackBar(content: Text('คัดลอกลิงก์แล้ว วางในเบราว์เซอร์เพื่อสร้าง key')));
+    messenger.showSnackBar(SnackBar(content: Text(t.linkCopied)));
   }
 
   /// ตั้งค่าของบริการที่เลือก แสดงในการ์ดเดียวกับตัวเลือกนั้น
-  Widget _config(AiSettingsState ai) {
+  Widget _config(AiSettingsState ai, AppStrings t) {
     final kind = ai.provider;
     if (!kind.isCloud) {
       return ListTile(
         leading: const Icon(Icons.memory_rounded),
-        title: const Text('จัดการโมเดลในเครื่อง'),
+        title: Text(t.manageLocalModel),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const LocalModelPage())),
       );
@@ -70,18 +75,18 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
       padding: const EdgeInsets.all(Insets.page),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Labeled(
-          hasKey ? 'API key (ตั้งไว้แล้ว — ใส่ใหม่เพื่อเปลี่ยน)' : 'API key ของ ${kind.label}',
+          hasKey ? t.apiKeyReplace : t.apiKeyFor(kind.label),
           child: TextField(
             controller: _key,
             obscureText: !_showKey,
             autocorrect: false,
             enableSuggestions: false,
             decoration: InputDecoration(
-              hintText: hasKey ? '••••••••••••' : 'วาง key ที่นี่',
-              helperText: 'สร้างได้ที่ ${kind.keyUrl} · เก็บใน Keychain/Keystore ของเครื่อง แยกตามบัญชี',
+              hintText: hasKey ? '••••••••••••' : t.pasteKey,
+              helperText: t.keyHelp(kind.keyUrl),
               helperMaxLines: 3,
               suffixIcon: IconButton(
-                tooltip: _showKey ? 'ซ่อน' : 'แสดง',
+                tooltip: _showKey ? t.hide : t.show,
                 icon: Icon(_showKey ? Icons.visibility_off_outlined : Icons.visibility_outlined),
                 onPressed: () => setState(() => _showKey = !_showKey),
               ),
@@ -91,17 +96,17 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
         ),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          FilledButton(onPressed: _saveKey, child: const Text('บันทึก key')),
+          FilledButton(onPressed: _saveKey, child: Text(t.saveKey)),
           TextButton.icon(
             onPressed: () => _copyKeyUrl(kind.keyUrl),
             icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('คัดลอกลิงก์'),
+            label: Text(t.copyLink),
           ),
           if (hasKey)
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
               onPressed: () => _deleteKey(kind),
-              child: const Text('ลบ key'),
+              child: Text(t.deleteKey),
             ),
         ]),
         const SizedBox(height: 16),
@@ -112,6 +117,7 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final t = ref.watch(stringsProvider);
     final ai = ref.watch(aiSettingsProvider);
     final aiVm = ref.read(aiSettingsProvider.notifier);
     final theme = Theme.of(context);
@@ -119,7 +125,7 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
     // ถือ view model ไว้ตลอดอายุหน้า ผลการบันทึก key แสดงโดยหน้าตั้งค่าที่อยู่ข้างใต้
     ref.watch(settingsViewModelProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('AI ที่ใช้บันทึก')),
+      appBar: AppBar(title: Text(t.aiForRecording)),
       body: ListView(
         padding: EdgeInsets.fromLTRB(Insets.page, 4, Insets.page, 32 + MediaQuery.paddingOf(context).bottom),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -145,8 +151,8 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
                         k == ai.provider ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
                         color: k == ai.provider ? scheme.primary : null,
                       ),
-                      title: Text(k.label, style: theme.textTheme.titleMedium),
-                      subtitle: Text(k.description),
+                      title: Text(t.providerLabel(k), style: theme.textTheme.titleMedium),
+                      subtitle: Text(t.providerDescription(k)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: Insets.page, vertical: 4),
                       onTap: () {
                         if (k == ai.provider) return;
@@ -155,7 +161,7 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
                       },
                     ),
                   ),
-                  if (k == ai.provider) ...[const Divider(), _config(ai)],
+                  if (k == ai.provider) ...[const Divider(), _config(ai, t)],
                 ]),
               ),
             ),
@@ -172,6 +178,7 @@ class _ModelField extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final selected = ref.watch(aiSettingsProvider.select((s) => s.modelFor(kind)));
     final hasKey = ref.watch(aiSettingsProvider.select((s) => s.savedKeys.contains(kind)));
     final models = ref.watch(aiModelsProvider(kind));
@@ -179,7 +186,7 @@ class _ModelField extends ConsumerWidget {
     final error = models.isLoading ? null : models.error;
     // โมเดลที่เลือกไว้ต้องอยู่ในรายการเสมอ แม้ยังโหลดไม่เสร็จหรือบริการไม่มีแล้ว
     final items = [if (!list.contains(selected)) selected, ...list];
-    return Labeled('โมเดล', child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return Labeled(t.model, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(
         child: DropdownButtonFormField<String>(
           key: ValueKey(selected),
@@ -187,15 +194,15 @@ class _ModelField extends ConsumerWidget {
           isExpanded: true,
           menuMaxHeight: 400,
           decoration: InputDecoration(
-            errorText: error == null ? null : 'โหลดรายชื่อโมเดลไม่ได้ — $error',
+            errorText: error == null ? null : t.modelListFailed(error),
             errorMaxLines: 3,
             helperText: !hasKey
-                ? 'บันทึก API key ก่อน เพื่อโหลดรายชื่อโมเดล'
+                ? t.saveKeyForModels
                 : models.isLoading
-                    ? 'กำลังโหลดรายชื่อโมเดล…'
+                    ? t.loadingModels
                     : list.contains(selected)
-                        ? '${list.length} โมเดลจาก ${kind.label}'
-                        : 'โมเดลที่เลือกไว้ไม่อยู่ในรายชื่อ — เลือกใหม่',
+                        ? t.modelCount(list.length, kind.label)
+                        : t.modelNotListed,
             helperMaxLines: 2,
           ),
           items: [for (final id in items) DropdownMenuItem(value: id, child: Text(id, overflow: TextOverflow.ellipsis))],
@@ -205,7 +212,7 @@ class _ModelField extends ConsumerWidget {
       Padding(
         padding: const EdgeInsets.only(top: 4),
         child: IconButton(
-          tooltip: 'โหลดรายชื่อโมเดลใหม่',
+          tooltip: t.reloadModels,
           onPressed: !hasKey || models.isLoading ? null : () => ref.invalidate(aiModelsProvider(kind)),
           icon: models.isLoading
               ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))

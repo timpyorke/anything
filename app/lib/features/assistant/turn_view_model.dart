@@ -6,6 +6,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
+import '../../app/language.dart';
 import '../diary/diary_view_model.dart';
 import 'recorder.dart';
 
@@ -69,23 +70,24 @@ class TurnViewModel extends Notifier<TurnState> {
     // อ่าน state ก่อน await (หลังจากนั้น provider อาจถูกทิ้งแล้ว)
     final message = state.text, history = state.history, photos = state.photos, input = _input;
     final diary = ref.read(diaryViewModelProvider.notifier);
+    final t = ref.read(stringsProvider);
     final cancel = _cancel = Completer<void>();
     final provider = await ref.read(aiSettingsProvider.notifier).resolveProvider();
     if (!ref.mounted) return;
     if (provider == null) {
-      state = state.copyWith(busy: false, error: 'ยังไม่ได้ตั้งค่า AI');
+      state = state.copyWith(busy: false, error: t.aiNotSetUp);
       return;
     }
     try {
-      final result = await Recorder(ref.read(diaryViewModelProvider))
+      final result = await Recorder(ref.read(diaryViewModelProvider), strings: t)
           .run(provider, message, history: history, photos: photos, cancel: cancel.future);
       if (cancel.isCompleted) return;
       state = state.copyWith(result: result, busy: false);
       if (result.actions.isEmpty) await _log(diary, provider, input, result.raw, 'rejected');
     } catch (e) {
       if (cancel.isCompleted) return;
-      // LlmException.toString() คือข้อความภาษาไทยที่พร้อมแสดงอยู่แล้ว
-      if (ref.mounted) state = state.copyWith(busy: false, error: e is LlmException ? e.message : 'เกิดข้อผิดพลาด: $e');
+      // ข้อความของ LlmException พร้อมแสดงอยู่แล้ว
+      if (ref.mounted) state = state.copyWith(busy: false, error: e is LlmException ? e.message : t.unexpectedError(e));
       await _log(diary, provider, input, null, 'error', '$e');
     }
   }
@@ -112,7 +114,7 @@ class TurnViewModel extends Notifier<TurnState> {
 
   /// ข้อความของผู้ใช้ทุกรอบ สำหรับเก็บใน log (เก็บแค่จำนวนรูป ไม่เก็บตัวรูป)
   String get _input => [
-        if (state.photos.isNotEmpty) '[แนบรูป ${state.photos.length} รูป]',
+        if (state.photos.isNotEmpty) ref.read(stringsProvider).attachedPhotosLog(state.photos.length),
         for (final h in state.history) h.message,
         state.text,
       ].join('\n');
@@ -138,6 +140,7 @@ class TurnViewModel extends Notifier<TurnState> {
     final r = state.result!;
     final diary = ref.read(diaryViewModelProvider.notifier);
     final settings = ref.read(aiSettingsProvider.notifier);
+    final t = ref.read(stringsProvider);
     final input = _input;
     state = state.copyWith(busy: true);
     final chosen = r.actions.where((a) => a.selected && a.valid).toList()
@@ -155,7 +158,7 @@ class TurnViewModel extends Notifier<TurnState> {
       await _log(diary, p, input, {'actions': [for (final a in chosen) a.summary], 'raw': r.raw}, failures.isEmpty ? 'applied' : 'error',
           failures.isEmpty ? null : failures.join('\n'));
     }
-    final error = failures.isEmpty ? null : 'บางรายการบันทึกไม่สำเร็จ:\n${failures.join('\n')}';
+    final error = failures.isEmpty ? null : t.someSavesFailed(failures.join('\n'));
     if (ref.mounted) state = state.copyWith(busy: false, applied: error == null, error: error);
     return (count: chosen.length, error: error);
   }

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'ai/ai_settings.dart';
 import 'app/anything_app.dart';
+import 'app/language.dart';
 import 'app/missing_config_page.dart';
 
 /// ค่าเชื่อมต่อ Supabase มาจากตอน build:
@@ -24,6 +25,7 @@ Future<void> main() async {
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
   await FlutterEdgeAi.initialize(inferenceEngines: [LiteRtLmEngine()]);
   final container = ProviderContainer();
+  await container.read(languageProvider.notifier).load();
   await container.read(aiSettingsProvider.notifier).load();
   runApp(UncontrolledProviderScope(container: container, child: const AnythingApp()));
 }

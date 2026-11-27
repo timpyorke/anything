@@ -2,21 +2,25 @@ import 'dart:typed_data';
 
 /// ผู้ให้บริการ AI ที่ผู้ใช้เลือกได้
 enum AiProviderKind {
-  onDevice('on_device', 'Gemma บนเครื่อง', 'ทำงานในมือถือ ไม่ต้องใช้เน็ต ข้อมูลไม่ออกจากเครื่อง'),
-  aiStudio('ai_studio', 'Google AI Studio', 'ใช้ API key ของคุณ ข้อความและรูปที่แนบถูกส่งไปที่ Google',
+  onDevice('on_device', 'Gemma'),
+  aiStudio('ai_studio', 'Google AI Studio', company: 'Google',
       defaultModel: 'gemini-2.5-flash', keyUrl: 'aistudio.google.com/apikey', slot: 'studio'),
-  anthropic('anthropic', 'Claude (Anthropic)', 'ใช้ API key ของคุณ ข้อความและรูปที่แนบถูกส่งไปที่ Anthropic',
+  anthropic('anthropic', 'Claude (Anthropic)', company: 'Anthropic',
       defaultModel: 'claude-opus-5-5', keyUrl: 'platform.claude.com/settings/keys', slot: 'anthropic'),
-  openAi('openai', 'OpenAI', 'ใช้ API key ของคุณ ข้อความและรูปที่แนบถูกส่งไปที่ OpenAI',
+  openAi('openai', 'OpenAI', company: 'OpenAI',
       defaultModel: 'gpt-6-luna', keyUrl: 'platform.openai.com/api-keys', slot: 'openai'),
-  openRouter('openrouter', 'OpenRouter', 'key เดียวใช้ได้หลายค่าย ข้อความและรูปผ่าน OpenRouter ไปยังผู้ให้บริการของโมเดล',
+  openRouter('openrouter', 'OpenRouter',
       defaultModel: 'openrouter/auto', keyUrl: 'openrouter.ai/keys', slot: 'openrouter');
 
-  const AiProviderKind(this.id, this.label, this.description, {this.defaultModel = '', this.keyUrl = '', this.slot = ''});
+  const AiProviderKind(this.id, this.label, {this.company = '', this.defaultModel = '', this.keyUrl = '', this.slot = ''});
 
   /// ค่าที่เก็บใน ai_logs.provider (ต้องตรงกับ check constraint ในฐานข้อมูล)
   final String id;
-  final String label, description;
+  /// ชื่อบริการ (ชื่อและคำอธิบายตามภาษาของแอปอยู่ที่ AppStrings.providerLabel/providerDescription)
+  final String label;
+
+  /// บริษัทที่ได้รับข้อความและรูปที่ส่ง
+  final String company;
   final String defaultModel, keyUrl;
 
   /// ส่วนของชื่อค่าที่เก็บในเครื่อง (ว่าง = ไม่ใช้ API key)
@@ -43,7 +47,7 @@ abstract class LlmProvider {
 
 class LlmCancelled implements Exception {
   @override
-  String toString() => 'ยกเลิกแล้ว';
+  String toString() => 'LlmCancelled';
 }
 
 class LlmException implements Exception {

@@ -23,14 +23,6 @@ abstract class Recurrence with _$Recurrence {
     return n > 0 ? (n, m[2]!) : null;
   }
 
-  String get label {
-    const named = {'daily': 'ทุกวัน', 'weekly': 'ทุกสัปดาห์', 'monthly': 'ทุกเดือน', 'yearly': 'ทุกปี'};
-    if (named.containsKey(every)) return named[every]!;
-    final p = parseEvery(every);
-    if (p == null) return every;
-    return 'ทุก ${p.$1} ${const {'d': 'วัน', 'w': 'สัปดาห์', 'm': 'เดือน', 'y': 'ปี'}[p.$2]}';
-  }
-
   /// ทุกครั้งที่เกิด นับจาก [start]; ถ้าไม่มี times/until จะหยุดที่ [horizon]
   List<DateTime> occurrences(DateTime start, {required DateTime horizon}) {
     final step = parseEvery(every);

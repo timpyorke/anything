@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
 import '../../domain/entry.dart';
 import '../entry_editor/entry_editor_page.dart';
 import 'entry_card.dart';
 
 /// หัวข้อ + รายการแบบ journal (sliver) ใช้ทั้ง Timeline, หน้ารายการล่วงหน้า และหน้าค้นหา
-class EntrySection extends StatelessWidget {
+class EntrySection extends ConsumerWidget {
   const EntrySection({
     super.key,
     required this.title,
@@ -28,7 +30,8 @@ class EntrySection extends StatelessWidget {
   final String? impliedBadge;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final theme = Theme.of(context);
     return SliverMainAxisGroup(
       slivers: [
@@ -65,7 +68,7 @@ class EntrySection extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(emptyText!, textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
                     const SizedBox(height: 4),
-                    Text('เช่น “วิ่งมา 5 กม.” หรือ “ศุกร์หน้านัดหมอ”',
+                    Text(t.entryExamples,
                         textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
                   ]),
                 ),
@@ -78,12 +81,12 @@ class EntrySection extends StatelessWidget {
             // วันเดียวกันหลายรายการ แสดงวันที่และป้ายเฉพาะแถวแรก
             // (ป้ายที่ต่างออกไป เช่น ช่วงหลายวันที่เริ่มวันเดียวกัน ยังต้องแสดง)
             final newDay = i == 0 || items[i - 1].shownDate(now) != items[i].shownDate(now);
-            final badge = EntryCard.badgeOf(items[i], now);
+            final badge = EntryCard.badgeOf(items[i], now, t);
             return EntryCard(
               entry: items[i],
               now: now,
               showDate: newDay,
-              showBadge: badge != impliedBadge && (newDay || EntryCard.badgeOf(items[i - 1], now) != badge),
+              showBadge: badge != impliedBadge && (newDay || EntryCard.badgeOf(items[i - 1], now, t) != badge),
               onTap: () => openEditor(context, entry: items[i]),
             );
           },

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../app/language.dart';
 import '../../app/providers.dart';
 import '../../data/photo_picker.dart';
 import '../../domain/photo.dart';
@@ -36,7 +37,8 @@ class PhotoDraftViewModel extends Notifier<PhotoDraftState> {
     if (state.picking) return;
     final user = ref.read(currentUserIdProvider);
     state = state.copyWith(picking: true, notice: null);
-    final picked = await pickPhotos(ref.read(photoPickerProvider), source, room: maxPhotosPerMessage - state.photos.length);
+    final picked = await pickPhotos(ref.read(photoPickerProvider), source,
+        room: maxPhotosPerMessage - state.photos.length, strings: ref.read(stringsProvider));
     if (user != ref.read(currentUserIdProvider)) return;
     _append(picked);
   }
@@ -51,7 +53,7 @@ class PhotoDraftViewModel extends Notifier<PhotoDraftState> {
       return; // กู้ไม่ได้ก็ให้ผู้ใช้ถ่ายใหม่
     }
     if (lost.isEmpty || user != ref.read(currentUserIdProvider)) return;
-    _append(preparePhotos(lost, room: maxPhotosPerMessage - state.photos.length));
+    _append(preparePhotos(lost, room: maxPhotosPerMessage - state.photos.length, strings: ref.read(stringsProvider)));
   }
 
   void _append(PickedPhotos picked) =>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/language.dart';
 import '../../app/providers.dart';
 import '../../domain/photo.dart';
 
@@ -24,6 +25,7 @@ class PhotoImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
     final broken = Center(child: Icon(Icons.broken_image_outlined, color: color));
     Widget image(bytes) => Image.memory(
@@ -39,7 +41,7 @@ class PhotoImage extends ConsumerWidget {
           data: image,
           loading: () => const Center(child: SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))),
           error: (_, _) => IconButton(
-            tooltip: 'โหลดรูปไม่ได้ แตะเพื่อลองใหม่',
+            tooltip: t.photoLoadFailed,
             icon: Icon(Icons.refresh, color: color),
             onPressed: () => ref.invalidate(photoBytesProvider(path)),
           ),
@@ -48,7 +50,7 @@ class PhotoImage extends ConsumerWidget {
 }
 
 /// แถวรูปย่อ แตะเพื่อดูเต็มจอ
-class PhotoStrip extends StatelessWidget {
+class PhotoStrip extends ConsumerWidget {
   const PhotoStrip(this.photos, {super.key, this.size = 64, this.max, this.onRemove});
   final List<Photo> photos;
   final double size;
@@ -60,7 +62,8 @@ class PhotoStrip extends StatelessWidget {
   final ValueChanged<int>? onRemove;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final shown = max == null || photos.length <= max! ? photos.length : max!;
     final hidden = photos.length - shown;
     final scheme = Theme.of(context).colorScheme;
@@ -71,7 +74,7 @@ class PhotoStrip extends StatelessWidget {
           dimension: size,
           child: Stack(fit: StackFit.expand, children: [
             Semantics(
-              label: 'รูปที่ ${i + 1} จาก ${photos.length}',
+              label: t.photoPosition(i + 1, photos.length),
               button: true,
               child: GestureDetector(
                 onTap: () => openPhotoViewer(context, photos, i),
@@ -97,7 +100,7 @@ class PhotoStrip extends StatelessWidget {
               Align(
                 alignment: Alignment.topRight,
                 child: IconButton(
-                  tooltip: 'เอารูปออก',
+                  tooltip: t.removePhoto,
                   onPressed: () => onRemove!(i),
                   // พื้นที่แตะกว้างกว่าวงกลมที่เห็น กดเอาออกได้โดยไม่เปิดรูป
                   padding: const EdgeInsets.all(4),

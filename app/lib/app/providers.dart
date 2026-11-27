@@ -8,6 +8,7 @@ import '../ai/voice_recorder.dart';
 import '../data/photo_picker.dart';
 import '../data/supabase_diary_repository.dart';
 import '../domain/repositories/diary_repository.dart';
+import 'language.dart';
 
 /// Provider ระดับแอป (infrastructure) — ทดสอบได้โดย override ที่นี่
 
@@ -44,4 +45,4 @@ final voiceRecorderProvider = Provider<VoiceRecorder>((ref) {
 final photoPickerProvider = Provider<PhotoPicker>((ref) => DevicePhotoPicker());
 
 /// ถอดเสียงเป็นข้อความในเครื่อง (ใช้ Gemma เสมอ ไม่ว่าจะเลือก AI ตัวไหนไว้บันทึก)
-final transcriberProvider = Provider<Transcriber>((ref) => const GemmaTranscriber());
+final transcriberProvider = Provider<Transcriber>((ref) => GemmaTranscriber(strings: ref.watch(stringsProvider)));

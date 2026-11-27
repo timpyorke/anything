@@ -5,6 +5,8 @@ import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/notice_box.dart';
 import '../../domain/photo.dart';
@@ -23,36 +25,36 @@ import 'turn_view_model.dart';
 Future<LlmProvider?> ensureLlmProvider(NavigatorState nav, WidgetRef ref) async {
   final settings = ref.read(aiSettingsProvider.notifier);
   final kind = ref.read(aiSettingsProvider).provider;
+  final t = ref.read(stringsProvider);
   final p = await settings.resolveProvider();
   if (p != null) return p;
   await _offerSettings(
     nav,
-    title: 'ยังไม่ได้ตั้งค่า AI',
-    message: kind.isCloud
-        ? 'ใส่ API key ของ ${kind.label} ในหน้าตั้งค่าก่อน'
-        : 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน',
+    t,
+    title: t.aiNotSetUp,
+    message: kind.isCloud ? t.needApiKey(kind.label) : t.needLocalModel(OnDeviceProvider.sizeLabel),
     page: kind.isCloud ? const AiSettingsPage() : const LocalModelPage(),
   );
   return null;
 }
 
 /// การพูดต้องมี Gemma ในเครื่องเสมอ แม้จะเลือก AI ตัวอื่นไว้บันทึก
-Future<void> offerVoiceModelSetup(NavigatorState nav) => _offerSettings(
+Future<void> offerVoiceModelSetup(NavigatorState nav, AppStrings t) => _offerSettings(
       nav,
-      title: 'ยังไม่มีโมเดลฟังเสียง',
-      message: 'ดาวน์โหลดโมเดล Gemma (${OnDeviceProvider.sizeLabel}) ในหน้าตั้งค่าก่อน '
-          'เสียงจะถูกถอดเป็นข้อความในเครื่อง',
+      t,
+      title: t.noVoiceModel,
+      message: t.needVoiceModel(OnDeviceProvider.sizeLabel),
       page: const LocalModelPage(),
     );
 
-Future<void> _offerSettings(NavigatorState nav, {required String title, required String message, required Widget page}) async {
+Future<void> _offerSettings(NavigatorState nav, AppStrings t, {required String title, required String message, required Widget page}) async {
   final setUp = await confirmAction(
     // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
     nav.context,
     title: title,
     message: message,
-    cancelLabel: 'ไว้ก่อน',
-    confirmLabel: 'ไปตั้งค่า',
+    cancelLabel: t.later,
+    confirmLabel: t.goToSettings,
     destructive: false,
   );
   if (setUp) {
@@ -69,6 +71,7 @@ class TurnView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final turn = ref.watch(turnViewModelProvider(request));
     final vm = ref.read(turnViewModelProvider(request).notifier);
     final photos = [for (final b in turn.photos) Photo(bytes: b)];
@@ -93,9 +96,9 @@ class TurnView extends ConsumerWidget {
         Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Row(children: [
           const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           const SizedBox(width: 12),
-          const Expanded(child: Text('AI กำลังคิด…')),
+          Expanded(child: Text(t.aiThinking)),
           // ปิด sheet = provider ถูกทิ้ง ซึ่งยกเลิกคำขอ AI
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(t.cancel)),
         ])),
       if (turn.error != null)
         Padding(
@@ -103,7 +106,7 @@ class TurnView extends ConsumerWidget {
           child: NoticeBox(
             turn.error!,
             // ยังไม่ได้คำตอบเลย: ส่งข้อความเดิมซ้ำได้โดยไม่ต้องพิมพ์ใหม่
-            action: r == null && !turn.busy ? TextButton(onPressed: vm.retry, child: const Text('ลองใหม่')) : null,
+            action: r == null && !turn.busy ? TextButton(onPressed: vm.retry, child: Text(t.retry)) : null,
           ),
         ),
       if (r != null) ...[
@@ -112,7 +115,7 @@ class TurnView extends ConsumerWidget {
         if (r.actions.isEmpty && r.questions.isEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text('ยังไม่มีอะไรถูกบันทึก', style: theme.textTheme.bodySmall),
+            child: Text(t.nothingSaved, style: theme.textTheme.bodySmall),
           ),
         for (final (i, a) in r.actions.indexed)
           _ActionTile(
@@ -126,7 +129,7 @@ class TurnView extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'รูป ${turn.unattachedPhotos} รูปไม่ได้แนบกับรายการที่เลือก จะไม่ถูกเก็บ',
+              t.unattachedPhotos(turn.unattachedPhotos),
               style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
             ),
           ),
@@ -137,17 +140,18 @@ class TurnView extends ConsumerWidget {
                 ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Icon(Icons.check_circle_rounded, color: scheme.primary, size: 18),
                     const SizedBox(width: 6),
-                    const Text('บันทึกแล้ว'),
+                    Text(t.saved),
                   ])
                 : FilledButton.icon(
                     onPressed: turn.busy || chosen == 0 ? null : onApply,
                     icon: const Icon(Icons.check_rounded),
-                    label: Text('บันทึก $chosen รายการ'),
+                    label: Text(t.saveCount(chosen)),
                   ),
           ),
       ],
       if (!turn.busy && !turn.applied)
-        _AnswerBox(hint: r?.questions.isNotEmpty ?? false ? 'ตอบคำถาม…' : 'บอกเพิ่มหรือแก้…', onSend: vm.answer),
+        _AnswerBox(
+            hint: r?.questions.isNotEmpty ?? false ? t.answerHint : t.followUpHint, sendLabel: t.send, onSend: vm.answer),
     ]);
   }
 }
@@ -211,8 +215,8 @@ class _Reply extends StatelessWidget {
 
 /// ช่องตอบ AI ต่อในเรื่องเดิม
 class _AnswerBox extends StatefulWidget {
-  const _AnswerBox({required this.hint, required this.onSend});
-  final String hint;
+  const _AnswerBox({required this.hint, required this.sendLabel, required this.onSend});
+  final String hint, sendLabel;
   final ValueChanged<String> onSend;
 
   @override
@@ -241,7 +245,7 @@ class _AnswerBoxState extends State<_AnswerBox> {
         onSubmitted: (_) => _send(),
         decoration: InputDecoration(
           hintText: widget.hint,
-          suffixIcon: IconButton(icon: const Icon(Icons.arrow_upward_rounded), tooltip: 'ส่ง', onPressed: _send),
+          suffixIcon: IconButton(icon: const Icon(Icons.arrow_upward_rounded), tooltip: widget.sendLabel, onPressed: _send),
         ),
       );
 }
@@ -257,6 +261,7 @@ class _ActionTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final a = action;
@@ -294,7 +299,7 @@ class _ActionTile extends ConsumerWidget {
             ),
             if (a.entry != null && !locked)
               IconButton(
-                tooltip: 'แก้ก่อนบันทึก',
+                tooltip: t.editBeforeSaving,
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 onPressed: () async {
                   final saved = await openEditor(context, entry: a.entry, draft: true);

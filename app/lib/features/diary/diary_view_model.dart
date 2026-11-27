@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/language.dart';
 import '../../app/providers.dart';
 import '../../core/utils/markdown.dart' as md;
 import '../../domain/category.dart';
@@ -43,7 +44,7 @@ class DiaryViewModel extends Notifier<DiaryState> {
 
   /// [removedPhotos] = รูปเดิมที่ผู้ใช้เอาออก (รูปใหม่อยู่ใน e.photos)
   Future<Entry> save(Entry e, {List<Photo> removedPhotos = const []}) async {
-    final errors = state.validate(e);
+    final errors = state.validate(e, ref.read(stringsProvider));
     if (errors.isNotEmpty) throw ArgumentError(errors.join('\n'));
     final saved = e.id == null ? await _repo.insert(e) : await _repo.update(e, removedPhotos: removedPhotos);
     state = state.copyWith(

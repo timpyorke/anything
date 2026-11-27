@@ -6,6 +6,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../ai/ai_settings.dart';
 import '../../ai/pcm_audio.dart';
+import '../../app/language.dart';
 import '../../app/providers.dart';
 
 part 'voice_view_model.freezed.dart';
@@ -30,8 +31,6 @@ final voiceViewModelProvider = NotifierProvider<VoiceViewModel, VoiceState>(Voic
 
 /// อัดเสียง → ถอดเป็นข้อความด้วย Gemma ในเครื่อง (เสียงไม่ออกจากเครื่อง)
 class VoiceViewModel extends Notifier<VoiceState> {
-  static const _noSpeech = 'ไม่ได้ยินเสียง แตะไมค์แล้วพูดใหม่ได้เลย';
-
   /// เพิ่มทุกครั้งที่เริ่มใหม่หรือทิ้ง — งานรอบเก่าที่เพิ่งเสร็จจะรู้ว่าตัวเองถูกยกเลิกแล้ว
   int _round = 0;
   bool _starting = false;
@@ -55,7 +54,7 @@ class VoiceViewModel extends Notifier<VoiceState> {
       if (!await ref.read(transcriberProvider).isReady()) return VoiceStart.needsVoiceModel;
       final recorder = ref.read(voiceRecorderProvider);
       if (!await recorder.hasPermission()) {
-        state = const VoiceState(notice: 'ใช้ไมโครโฟนไม่ได้ ตรวจสิทธิ์ในการตั้งค่าเครื่อง');
+        state = VoiceState(notice: ref.read(stringsProvider).micDenied);
         return VoiceStart.unavailable;
       }
       if (round != _round) return VoiceStart.released;
@@ -71,7 +70,7 @@ class VoiceViewModel extends Notifier<VoiceState> {
       });
       return VoiceStart.started;
     } catch (e) {
-      state = VoiceState(notice: 'เปิดไมโครโฟนไม่ได้: $e');
+      state = VoiceState(notice: ref.read(stringsProvider).micFailed(e));
       return VoiceStart.unavailable;
     } finally {
       _starting = false;
@@ -85,16 +84,17 @@ class VoiceViewModel extends Notifier<VoiceState> {
     _timer?.cancel();
     state = const VoiceState(transcribing: true);
     String? text, notice;
+    final t = ref.read(stringsProvider);
     try {
       final pcm = await ref.read(voiceRecorderProvider).stop();
       if (round != _round) return null;
       if (!isSilent(pcm)) text = (await ref.read(transcriberProvider).transcribe(wavFromPcm(pcm))).trim();
       if (text == null || text.isEmpty) {
         text = null;
-        notice = _noSpeech;
+        notice = t.noSpeech;
       }
     } catch (e) {
-      notice = 'ถอดเสียงไม่สำเร็จ: $e';
+      notice = t.transcribeFailed(e);
     }
     if (round != _round) return null;
     state = VoiceState(notice: notice);

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_theme.dart';
-import '../../core/utils/dates.dart';
+import '../../app/language.dart';
 import '../../core/widgets/category_dot.dart';
 import '../../core/widgets/empty_state.dart';
 import '../assistant/anything_button.dart';
@@ -22,6 +22,7 @@ class TimelinePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final s = ref.watch(diaryViewModelProvider);
     final f = ref.watch(timelineFilterProvider);
     final view = ref.watch(timelineViewProvider);
@@ -32,9 +33,9 @@ class TimelinePage extends ConsumerWidget {
     ref.listen(diaryViewModelProvider.select((s) => s.error), (_, error) {
       if (error == null || ref.read(diaryViewModelProvider).entries.isEmpty) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('โหลดข้อมูลล่าสุดไม่สำเร็จ'),
+        content: Text(t.refreshFailed),
         persist: false,
-        action: SnackBarAction(label: 'ลองใหม่', onPressed: diary.load),
+        action: SnackBarAction(label: t.retry, onPressed: diary.load),
       ));
     });
     void push(Widget page) =>
@@ -51,18 +52,18 @@ class TimelinePage extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            tooltip: 'ค้นหา',
+            tooltip: t.search,
             icon: const Icon(Icons.search_rounded),
             onPressed: () => push(const SearchPage()),
           ),
           IconButton(
-            tooltip: 'ภาพรวม',
+            tooltip: t.overview,
             icon: const Icon(Icons.insights_rounded),
             onPressed: () =>
                 push(OverviewPage(openTimeline: () => Navigator.pop(context))),
           ),
           IconButton(
-            tooltip: 'ตั้งค่า',
+            tooltip: t.settings,
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => push(const SettingsPage()),
           ),
@@ -97,21 +98,21 @@ class TimelinePage extends ConsumerWidget {
                     hasScrollBody: false,
                     child: EmptyState(
                       icon: Icons.cloud_off_rounded,
-                      text: 'โหลดข้อมูลไม่สำเร็จ',
+                      text: t.loadFailed,
                       detail: s.error,
                       action: FilledButton.icon(
                         onPressed: diary.load,
                         icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('ลองใหม่'),
+                        label: Text(t.retry),
                       ),
                     ),
                   )
                 else if (f.active && view.count == 0)
-                  const SliverFillRemaining(
+                  SliverFillRemaining(
                     hasScrollBody: false,
                     child: EmptyState(
                       icon: Icons.filter_alt_off_rounded,
-                      text: 'ไม่พบรายการที่ตรงกับตัวกรอง',
+                      text: t.noFilterMatches,
                     ),
                   )
                 else ...[
@@ -119,7 +120,7 @@ class TimelinePage extends ConsumerWidget {
                   if (f.active)
                     for (final MapEntry(key: y, value: items)
                         in view.allByYear.entries)
-                      EntrySection(title: 'พ.ศ. ${be(y)}', items: items, now: now)
+                      EntrySection(title: t.yearLabel(y), items: items, now: now)
                   else ...[
                     if (view.upcoming.isNotEmpty)
                       SliverToBoxAdapter(
@@ -129,18 +130,18 @@ class TimelinePage extends ConsumerWidget {
                         ),
                       ),
                     EntrySection(
-                      title: 'วันนี้',
-                      subtitle: '${thWeekdays[now.weekday - 1]} ${fmtDay(now)}',
+                      title: t.today,
+                      subtitle: '${t.weekdays[now.weekday - 1]} ${t.fmtDay(now)}',
                       items: view.current,
                       now: now,
-                      impliedBadge: 'วันนี้',
-                      emptyText: 'ยังไม่ได้บันทึก พิมพ์หรือกดไมค์เล่าให้ AI ฟังได้เลย',
+                      impliedBadge: t.today,
+                      emptyText: t.todayEmpty,
                     ),
                     for (final MapEntry(key: y, value: items)
                         in view.pastByYear.entries)
                       EntrySection(
-                        title: y == now.year ? 'ก่อนหน้านี้' : 'พ.ศ. ${be(y)}',
-                        subtitle: y == now.year ? 'พ.ศ. ${be(y)}' : null,
+                        title: y == now.year ? t.earlier : t.yearLabel(y),
+                        subtitle: y == now.year ? t.yearLabel(y) : null,
                         items: items,
                         now: now,
                       ),
@@ -179,7 +180,7 @@ class TimelinePage extends ConsumerWidget {
 }
 
 /// บอกว่ากำลังกรองด้วยอะไร เจอกี่รายการ และล้างได้จากที่เดียว
-class _FilterBar extends StatelessWidget {
+class _FilterBar extends ConsumerWidget {
   const _FilterBar({required this.filter, required this.state, required this.count, required this.onClear});
   final TimelineFilter filter;
   final DiaryState state;
@@ -187,7 +188,8 @@ class _FilterBar extends StatelessWidget {
   final VoidCallback onClear;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(stringsProvider);
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Insets.page, 4, Insets.page, 0),
@@ -198,7 +200,7 @@ class _FilterBar extends StatelessWidget {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                  if (filter.day != null) Text(fmtDate(filter.day!), style: theme.textTheme.titleSmall),
+                  if (filter.day != null) Text(t.fmtDate(filter.day!), style: theme.textTheme.titleSmall),
                   for (final key in filter.cats ?? const <String>{})
                     Row(mainAxisSize: MainAxisSize.min, children: [
                       CategoryDot(state.category(key).color),
@@ -206,10 +208,10 @@ class _FilterBar extends StatelessWidget {
                       Flexible(child: Text(state.category(key).label, style: theme.textTheme.titleSmall)),
                     ]),
                 ]),
-                Text('$count รายการ', style: theme.textTheme.bodySmall),
+                Text(t.itemCount(count), style: theme.textTheme.bodySmall),
               ]),
             ),
-            TextButton(onPressed: onClear, child: const Text('ล้างตัวกรอง')),
+            TextButton(onPressed: onClear, child: Text(t.clearFilter)),
           ]),
         ),
       ),

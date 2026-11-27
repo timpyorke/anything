@@ -4,12 +4,19 @@ import 'dart:typed_data';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
+import '../core/l10n/app_strings.dart';
+import '../core/l10n/strings_th.dart';
 import '../domain/photo.dart';
 import 'llm_provider.dart';
 
 /// Gemma 4 E2B รันบนมือถือผ่าน flutter_edge_ai (LiteRT-LM)
 /// ไฟล์โมเดล 2.59 GB ดาวน์โหลดครั้งเดียว ไม่ต้องใช้ token (Apache-2.0)
 class OnDeviceProvider implements LlmProvider {
+  OnDeviceProvider({this.strings = const ThStrings()});
+
+  /// ภาษาของข้อความผิดพลาด และภาษาพูดที่ให้ถอดเสียง
+  final AppStrings strings;
+
   static final LiteRtLmVariant variant = LiteRtLmModels.gemma4E2bIt.generic;
   static const sizeLabel = '2.6 GB';
 
@@ -60,21 +67,22 @@ class OnDeviceProvider implements LlmProvider {
     return result;
   }
 
-  static Future<void> _requireInstalled() async {
+  Future<void> _requireInstalled() async {
     if (!await isInstalled()) {
-      throw LlmException('ยังไม่ได้ดาวน์โหลดโมเดล Gemma ($sizeLabel) — ไปที่หน้าตั้งค่า');
+      throw LlmException(strings.modelNotDownloaded(sizeLabel));
     }
   }
 
-  /// ถอดเสียงพูดภาษาไทยเป็นข้อความ ([wav] ยาวไม่เกิน 30 วินาที)
+  /// ถอดเสียงพูด (ภาษาตามที่ตั้งในแอป) เป็นข้อความ ([wav] ยาวไม่เกิน 30 วินาที)
   Future<String> transcribe(Uint8List wav) => _exclusive(() async {
         await _requireInstalled();
         final model = await _model();
         final session = await model.openSession(temperature: _temperature, maxOutputTokens: 512, enableAudioModality: true);
+        final language = switch (strings.language) { AppLanguage.th => 'Thai', AppLanguage.en => 'English' };
         try {
           // พรอมต์ถอดเสียงตาม model card ของ Gemma 4 (เสียงอยู่หลังข้อความ แพ็กเกจจัดลำดับให้)
           await session.addQueryChunk(Message.withAudio(
-            text: 'Transcribe the following speech segment in Thai into Thai text. '
+            text: 'Transcribe the following speech segment in $language into $language text. '
                 'Follow these specific instructions for formatting the answer:\n'
                 '* Only output the transcription, with no newlines.\n'
                 '* When transcribing numbers, write the digits.',
@@ -132,7 +140,7 @@ class OnDeviceProvider implements LlmProvider {
       }).ignore();
       return await response;
     } on ContextLimitException {
-      throw LlmException('ข้อความหรือรูปมากเกินกว่าที่โมเดลบนเครื่องรับได้ — แบ่งเป็นหลายครั้ง');
+      throw LlmException(strings.inputTooLarge);
     } on IncompleteStructuredOutputException catch (e) {
       return e.partialText;
     } on NonConformingStructuredOutputException catch (e) {
@@ -151,11 +159,12 @@ abstract class Transcriber {
 }
 
 class GemmaTranscriber implements Transcriber {
-  const GemmaTranscriber();
+  const GemmaTranscriber({this.strings = const ThStrings()});
+  final AppStrings strings;
 
   @override
   Future<bool> isReady() => OnDeviceProvider.isInstalled();
 
   @override
-  Future<String> transcribe(Uint8List wav) => OnDeviceProvider().transcribe(wav);
+  Future<String> transcribe(Uint8List wav) => OnDeviceProvider(strings: strings).transcribe(wav);
 }

@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ai/ai_settings.dart';
 import '../../app/app_theme.dart';
+import '../../app/language.dart';
 import '../../app/providers.dart';
+import '../../core/l10n/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/section.dart';
 import 'ai_settings_page.dart';
@@ -25,18 +27,20 @@ class SettingsPage extends ConsumerWidget {
     final nav = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final signOut = ref.read(signOutProvider);
+    final t = ref.read(stringsProvider);
     final ok = await confirmAction(
       context,
-      title: 'ออกจากระบบ?',
-      message: 'ต้องเข้าสู่ระบบใหม่เพื่อดูบันทึก',
-      confirmLabel: 'ออกจากระบบ',
+      title: t.signOutTitle,
+      message: t.signOutMessage,
+      cancelLabel: t.cancel,
+      confirmLabel: t.signOut,
     );
     if (!ok) return;
     try {
       await signOut();
       nav.popUntil((r) => r.isFirst);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('ออกจากระบบไม่สำเร็จ: $e')));
+      messenger.showSnackBar(SnackBar(content: Text(t.signOutFailed(e))));
     }
   }
 
@@ -46,6 +50,7 @@ class SettingsPage extends ConsumerWidget {
     ref.listen(settingsViewModelProvider.select((s) => s.notice), (_, notice) {
       if (notice != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
     });
+    final t = ref.watch(stringsProvider);
     final scheme = Theme.of(context).colorScheme;
     final email = ref.watch(currentUserEmailProvider) ?? '-';
     final ai = ref.watch(aiSettingsProvider);
@@ -54,7 +59,7 @@ class SettingsPage extends ConsumerWidget {
     final theme = Theme.of(context);
     const chevron = Icon(Icons.chevron_right_rounded);
     return Scaffold(
-      appBar: AppBar(title: const Text('ตั้งค่า')),
+      appBar: AppBar(title: Text(t.settings)),
       body: ListView(
         padding: EdgeInsets.only(top: 4, bottom: 32 + MediaQuery.paddingOf(context).bottom),
         children: [
@@ -67,15 +72,15 @@ class SettingsPage extends ConsumerWidget {
                 child: Text(email.characters.first.toUpperCase()),
               ),
               title: Text(email, style: theme.textTheme.titleMedium),
-              subtitle: const Text('บัญชีที่ใช้อยู่'),
+              subtitle: Text(t.currentAccount),
             ),
           ]),
           SectionCard(title: 'AI', children: [
             ListTile(
               leading: const Icon(Icons.auto_awesome_outlined),
-              title: const Text('AI ที่ใช้บันทึก'),
+              title: Text(t.aiForRecording),
               subtitle: Text(
-                '${ai.provider.label}${ai.missingKey ? ' · ยังไม่ได้ใส่ API key' : ''}',
+                '${t.providerLabel(ai.provider)}${ai.missingKey ? ' · ${t.noApiKeyYet}' : ''}',
                 // ยังใช้ AI ไม่ได้ ต้องสะดุดตา
                 style: ai.missingKey ? TextStyle(color: scheme.error) : null,
               ),
@@ -84,20 +89,34 @@ class SettingsPage extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.memory_rounded),
-              title: const Text('โมเดลในเครื่อง'),
+              title: Text(t.localModel),
               subtitle: Text(
-                gemmaStatus(st),
+                gemmaStatus(st, t),
                 style: st.gemmaError == null ? null : TextStyle(color: scheme.error),
               ),
               trailing: chevron,
               onTap: () => push(const LocalModelPage()),
             ),
           ]),
-          SectionCard(title: 'ข้อมูล', children: [
+          SectionCard(title: t.general, children: [
+            Padding(
+              padding: const EdgeInsets.all(Insets.page),
+              child: Labeled(
+                t.languageSetting,
+                child: SegmentedButton<AppLanguage>(
+                  showSelectedIcon: false,
+                  segments: [for (final l in AppLanguage.values) ButtonSegment(value: l, label: Text(l.nativeName))],
+                  selected: {t.language},
+                  onSelectionChanged: (v) => ref.read(languageProvider.notifier).select(v.first),
+                ),
+              ),
+            ),
+          ]),
+          SectionCard(title: t.data, children: [
             ListTile(
               leading: const Icon(Icons.file_upload_outlined),
-              title: const Text('นำเข้าจากระบบเดิม'),
-              subtitle: const Text('ไฟล์ JSON ที่ export จากระบบเดิม · นำเข้าซ้ำได้ ไม่สร้างรายการซ้ำ'),
+              title: Text(t.importLegacy),
+              subtitle: Text(t.importLegacyDetail),
               trailing: st.importing
                   ? const SizedBox.square(dimension: 24, child: CircularProgressIndicator(strokeWidth: 3))
                   : chevron,
@@ -107,7 +126,7 @@ class SettingsPage extends ConsumerWidget {
           SectionCard(children: [
             ListTile(
               leading: Icon(Icons.logout_rounded, color: scheme.error),
-              title: Text('ออกจากระบบ', style: theme.textTheme.bodyLarge?.copyWith(color: scheme.error)),
+              title: Text(t.signOut, style: theme.textTheme.bodyLarge?.copyWith(color: scheme.error)),
               onTap: () => _signOut(context, ref),
             ),
           ]),

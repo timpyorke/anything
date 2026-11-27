@@ -112,7 +112,7 @@ class SupabaseDiaryRepository implements DiaryRepository {
   @override
   Future<int> importExport(Map<String, dynamic> data) async {
     if (data['format'] != 'life-dashboard-export' || data['version'] != 1) {
-      throw const FormatException('ไม่ใช่ไฟล์ export ที่รองรับ (life-dashboard-export version 1)');
+      throw UnsupportedExportException();
     }
     await db.from('categories').upsert([
       for (final c in data['categories'] as List)

@@ -2,6 +2,7 @@ import 'dart:ui' show Color;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../core/l10n/app_strings.dart';
 import '../../domain/category.dart';
 import '../../domain/entry.dart';
 import '../../domain/entry_validation.dart';
@@ -33,7 +34,8 @@ abstract class DiaryState with _$DiaryState {
   String metricLabel(String key) => metricMap[key]?.label ?? key;
   String metricUnit(String key, [String unit = '']) => unit.isNotEmpty ? unit : (metricMap[key]?.unit ?? '');
 
-  List<String> validate(Entry e) => validateEntry(e, categories: categoryKeys, metricKeys: metricKeys);
+  List<String> validate(Entry e, AppStrings strings) =>
+      validateEntry(e, categories: categoryKeys, metricKeys: metricKeys, strings: strings);
 
   Entry? byId(String id) => entries.where((e) => e.id == id).firstOrNull;
 

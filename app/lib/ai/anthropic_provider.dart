@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../core/l10n/app_strings.dart';
+import '../core/l10n/strings_th.dart';
 import '../domain/photo.dart';
 import 'llm_http.dart';
 import 'llm_provider.dart';
@@ -10,7 +12,11 @@ import 'llm_provider.dart';
 /// Claude API ของ Anthropic (Messages API) ด้วย API key ของผู้ใช้
 /// ไม่ส่ง temperature และไม่ตั้งค่า thinking: ใช้ค่าเริ่มต้นของแต่ละโมเดล
 class AnthropicProvider implements LlmProvider {
-  AnthropicProvider({required this.apiKey, required this.model, http.Client? client}) : _client = client ?? http.Client();
+  AnthropicProvider({required this.apiKey, required this.model, this.strings = const ThStrings(), http.Client? client})
+      : _client = client ?? http.Client();
+
+  /// ภาษาของข้อความผิดพลาด
+  final AppStrings strings;
 
   final String apiKey;
   @override
@@ -29,14 +35,14 @@ class AnthropicProvider implements LlmProvider {
   AiProviderKind get kind => AiProviderKind.anthropic;
 
   /// รหัสโมเดลที่ key นี้ใช้ได้ (เรียง A→Z)
-  static Future<List<String>> listModels(String apiKey, {http.Client? client}) async {
+  static Future<List<String>> listModels(String apiKey, {AppStrings strings = const ThStrings(), http.Client? client}) async {
     final c = client ?? http.Client();
     final ids = <String>{};
     String? after;
     do {
       final uri = Uri.https('api.anthropic.com', '/v1/models', {'limit': '1000', 'after_id': ?after});
-      final (status, json) = await llmRequest(c, _service, uri, headers: _headers(apiKey));
-      if (status != 200) throw llmError(_service, status, json);
+      final (status, json) = await llmRequest(c, _service, uri, headers: _headers(apiKey), strings: strings);
+      if (status != 200) throw llmError(_service, status, json, strings: strings);
       for (final m in (json['data'] as List? ?? const []).whereType<Map>()) {
         final id = m['id'];
         if (id is String && id.isNotEmpty) ids.add(id);
@@ -80,21 +86,22 @@ class AnthropicProvider implements LlmProvider {
         ],
         if (fallback) 'fallbacks': 'default',
       },
+      strings: strings,
       cancel: cancel,
       timeout: const Duration(seconds: 120),
     );
-    if (status != 200) throw llmError(_service, status, json, model: model);
+    if (status != 200) throw llmError(_service, status, json, strings: strings, model: model);
     // ตรวจเหตุที่หยุดก่อนอ่านเนื้อหา: ปฏิเสธหรือถูกตัดกลางทางอาจมีข้อความไม่ครบ
     final stop = json['stop_reason'];
-    if (stop == 'refusal') throw LlmException('$_service ปฏิเสธคำขอนี้');
-    if (stop == 'max_tokens') throw LlmException('คำตอบของ AI ยาวเกินกำหนด ลองแบ่งเล่าทีละเรื่อง');
+    if (stop == 'refusal') throw LlmException(strings.requestRefused(_service));
+    if (stop == 'max_tokens') throw LlmException(strings.answerTooLong);
     // content มีบล็อกชนิดอื่นปนได้ (เช่น thinking) เอาเฉพาะข้อความ
     final text = (json['content'] as List? ?? const [])
         .whereType<Map>()
         .where((b) => b['type'] == 'text')
         .map((b) => b['text'] ?? '')
         .join();
-    if (text.trim().isEmpty) throw LlmException('AI ไม่ได้ตอบกลับ${stop == null ? '' : ' ($stop)'}');
+    if (text.trim().isEmpty) throw LlmException(strings.emptyAnswer(stop));
     return text;
   }
 }
