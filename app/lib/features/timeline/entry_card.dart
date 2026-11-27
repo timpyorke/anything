@@ -104,7 +104,7 @@ class EntryCard extends ConsumerWidget {
               ? Padding(
                   padding: const EdgeInsets.only(top: 10),
                   child: Column(children: [
-                    Text('${shown.day}', style: theme.textTheme.headlineSmall?.copyWith(height: 1.2)),
+                    Text('${shown.day}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.5)),
                     Text(thMonthsShort[shown.month - 1], style: theme.textTheme.bodySmall),
                   ]),
                 )

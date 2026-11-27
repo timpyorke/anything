@@ -77,7 +77,7 @@ class SettingsPage extends ConsumerWidget {
               subtitle: Text(
                 '${ai.provider.label}${ai.missingKey ? ' · ยังไม่ได้ใส่ API key' : ''}',
                 // ยังใช้ AI ไม่ได้ ต้องสะดุดตา
-                style: ai.missingKey ? theme.textTheme.bodySmall?.copyWith(color: scheme.error) : null,
+                style: ai.missingKey ? TextStyle(color: scheme.error) : null,
               ),
               trailing: chevron,
               onTap: () => push(const AiSettingsPage()),
@@ -87,7 +87,7 @@ class SettingsPage extends ConsumerWidget {
               title: const Text('โมเดลในเครื่อง'),
               subtitle: Text(
                 gemmaStatus(st),
-                style: st.gemmaError == null ? null : theme.textTheme.bodySmall?.copyWith(color: scheme.error),
+                style: st.gemmaError == null ? null : TextStyle(color: scheme.error),
               ),
               trailing: chevron,
               onTap: () => push(const LocalModelPage()),

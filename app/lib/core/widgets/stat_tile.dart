@@ -16,7 +16,10 @@ class StatTile extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             if (icon != null) ...[Icon(icon, size: 20, color: theme.colorScheme.primary), const SizedBox(height: 8)],
             // ตัวเลขยาวหรือตัวอักษรใหญ่: ย่อแทนการตัดท้าย
-            FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: theme.textTheme.headlineSmall)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+            ),
             Text(label, style: theme.textTheme.bodySmall),
           ]),
         ),

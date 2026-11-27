@@ -22,14 +22,14 @@ class Pill extends StatelessWidget {
       fg = Color.lerp(color, scheme.onSurface, 0.3)!;
     } else {
       bg = scheme.surfaceContainerHighest;
-      fg = scheme.onSurface;
+      fg = scheme.onSurfaceVariant;
     }
     return Container(
       padding: EdgeInsets.symmetric(horizontal: outlined ? 0 : 8, vertical: outlined ? 0 : 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: 4)],
-        Flexible(child: Text(text, style: theme.textTheme.labelMedium?.copyWith(color: fg))),
+        Flexible(child: Text(text, style: theme.textTheme.labelMedium?.copyWith(color: fg, height: 1.4))),
       ]),
     );
   }

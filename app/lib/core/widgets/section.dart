@@ -36,7 +36,7 @@ class SectionCard extends StatelessWidget {
         if (title != null)
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(title!, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(title!, style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary)),
           ),
         Card(
           child: Column(children: [

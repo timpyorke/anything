@@ -129,11 +129,10 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
       child: SizedBox(
         width: math.min(MediaQuery.sizeOf(context).width - 24, 640),
         child: Material(
-          elevation: 6,
-          shadowColor: Colors.black.withValues(alpha: 0.35),
+          elevation: 3,
           color: scheme.surfaceContainerLow,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(28),
             side: BorderSide(color: scheme.outlineVariant),
           ),
           child: Padding(
@@ -241,7 +240,7 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final left = maxVoiceSeconds - seconds;
-    final color = left <= 5 ? scheme.error : scheme.primary; // 5 วินาทีสุดท้ายเตือนด้วยสีแดง
+    final color = left <= 5 ? scheme.error : scheme.onSurface; // 5 วินาทีสุดท้ายเตือนด้วยสีแดง
     return Row(children: [
       IconButton(icon: const Icon(Icons.close_rounded), tooltip: 'ยกเลิก', onPressed: _vm.discard),
       const SizedBox(width: 4),
@@ -301,8 +300,15 @@ class _AnythingButtonState extends ConsumerState<AnythingButton> {
     ]);
   }
 
-  Widget _primaryButton({required IconData icon, required String tooltip, required VoidCallback? onPressed}) =>
-      IconButton.filled(icon: Icon(icon), tooltip: tooltip, onPressed: onPressed);
+  Widget _primaryButton({required IconData icon, required String tooltip, required VoidCallback? onPressed}) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton.filled(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(backgroundColor: scheme.onSurface, foregroundColor: scheme.surface),
+    );
+  }
 }
 
 class _ResultSheet extends ConsumerWidget {

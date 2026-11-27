@@ -54,7 +54,7 @@ class _AuthPageState extends ConsumerState<AuthPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('Anything ~ diaries', textAlign: TextAlign.center, style: theme.textTheme.headlineMedium),
+                  Text('Anything ~ diaries', textAlign: TextAlign.center, style: theme.textTheme.headlineSmall),
                   Text('บันทึกชีวิตด้วย AI',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.bodyLarge?.copyWith(color: scheme.onSurfaceVariant)),

@@ -37,8 +37,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final categories = ref.watch(diaryViewModelProvider.select((s) => s.categories));
     final vm = ref.read(searchQueryProvider.notifier);
     final theme = Theme.of(context);
-    OutlineInputBorder pill(Color color) =>
-        OutlineInputBorder(borderRadius: BorderRadius.circular(99), borderSide: BorderSide(color: color));
+    OutlineInputBorder pill([BorderSide side = BorderSide.none]) =>
+        OutlineInputBorder(borderRadius: BorderRadius.circular(99), borderSide: side);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 64,
@@ -54,9 +54,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               hintMaxLines: 1,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-              border: pill(theme.colorScheme.outlineVariant),
-              enabledBorder: pill(theme.colorScheme.outlineVariant),
-              focusedBorder: pill(theme.colorScheme.primary),
+              border: pill(),
+              enabledBorder: pill(),
+              focusedBorder: pill(BorderSide(color: theme.colorScheme.onSurface.withValues(alpha: 0.4))),
               suffixIcon: query.isEmpty
                   ? null
                   : IconButton(

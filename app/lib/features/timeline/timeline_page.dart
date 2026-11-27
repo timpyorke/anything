@@ -45,9 +45,9 @@ class TimelinePage extends ConsumerWidget {
       appBar: AppBar(
         titleSpacing: Insets.page,
         // จอแคบ: ย่อชื่อให้พอดีแทนการถูกตัดท้าย
-        title: FittedBox(
+        title: const FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text('Anything ~ diaries', style: theme.textTheme.headlineSmall),
+          child: Text('Anything ~ diaries'),
         ),
         actions: [
           IconButton(
