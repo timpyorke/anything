@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// หน้าว่าง: ไอคอนในวงกลมจาง ข้อความหลัก คำอธิบายรอง (ถ้ามี) และปุ่มสิ่งที่ทำต่อได้
 class EmptyState extends StatelessWidget {

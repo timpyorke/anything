@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// ระยะและมุมโค้งกลางของแอป — ใช้ค่าจากที่นี่ ทุกหน้าจะเรียงตรงแนวกัน
 abstract final class Insets {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// การ์ดตัวเลขสรุป: ตัวเลขใหญ่ด้านบน คำอธิบายด้านล่าง
 class StatTile extends StatelessWidget {

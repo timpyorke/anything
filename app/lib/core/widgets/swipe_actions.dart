@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SwipeAction {
   const SwipeAction({required this.label, required this.icon, required this.background, required this.foreground, required this.onPressed});

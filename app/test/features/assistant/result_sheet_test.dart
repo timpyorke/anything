@@ -6,9 +6,9 @@ import 'package:anything/ai/llm_provider.dart';
 import 'package:anything/app/providers.dart';
 import 'package:anything/features/assistant/anything_button.dart';
 import 'package:anything/features/assistant/assistant_page.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../support/fake_diary_repository.dart';
 

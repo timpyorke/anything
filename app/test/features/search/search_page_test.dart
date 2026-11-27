@@ -3,9 +3,9 @@ import 'package:anything/domain/entry.dart';
 import 'package:anything/features/search/search_page.dart';
 import 'package:anything/features/timeline/entry_card.dart';
 import 'package:anything/features/timeline/timeline_page.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../support/fake_diary_repository.dart';
 

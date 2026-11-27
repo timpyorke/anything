@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'ai/ai_settings.dart';

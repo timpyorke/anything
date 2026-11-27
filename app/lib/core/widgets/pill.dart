@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// ป้ายเล็ก: มีสี = พื้นสีจางตัวอักษรสีนั้น · ไม่มีสี = พื้นเทา · outlined = ข้อความเทาไม่มีพื้น (เงียบที่สุด)
 class Pill extends StatelessWidget {
