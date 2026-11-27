@@ -5,8 +5,10 @@ import '../../core/utils/dates.dart';
 import '../../core/utils/format.dart';
 import '../../core/widgets/markdown_view.dart';
 import '../../core/widgets/pill.dart';
+import '../../core/widgets/swipe_actions.dart';
 import '../../domain/entry.dart';
 import '../../domain/recurrence.dart';
+import '../diary/deleted_snack_bar.dart';
 import '../diary/diary_state.dart';
 import '../diary/diary_view_model.dart';
 
@@ -40,7 +42,7 @@ class EntryCard extends ConsumerWidget {
     final cl = e.checklist;
 
     // แถวแบบ journal: คอลัมน์วันที่ซ้าย เนื้อหาขวา คั่นด้วยเส้นบาง (ไม่ใช้กรอบการ์ด)
-    return InkWell(
+    final row = InkWell(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
@@ -88,6 +90,40 @@ class EntryCard extends ConsumerWidget {
         ]),
       ),
     );
+
+    return SwipeActions(
+      // key ตามรายการ: ลบแล้วแถวถัดไปต้องไม่รับสถานะ "เปิดอยู่" ต่อ
+      key: ValueKey(e.id),
+      actions: [
+        if (onTap != null)
+          SwipeAction(
+            label: 'แก้ไข',
+            icon: Icons.edit_outlined,
+            background: scheme.surfaceContainerHighest,
+            foreground: scheme.onSurface,
+            onPressed: onTap!,
+          ),
+        SwipeAction(
+          label: 'ลบ',
+          icon: Icons.delete_outline,
+          background: scheme.error,
+          foreground: scheme.onError,
+          onPressed: () => _delete(context, ref),
+        ),
+      ],
+      child: row,
+    );
+  }
+
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final diary = ref.read(diaryViewModelProvider.notifier);
+    try {
+      await diary.delete(entry);
+      showDeletedSnackBar(messenger, diary, entry);
+    } catch (err) {
+      messenger.showSnackBar(SnackBar(content: Text('ลบไม่สำเร็จ: $err')));
+    }
   }
 
   Future<void> _toggle(BuildContext context, WidgetRef ref, int index, bool done) async {

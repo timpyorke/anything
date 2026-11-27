@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/dates.dart';
 import '../../domain/entry.dart';
+import '../diary/deleted_snack_bar.dart';
 import '../diary/diary_view_model.dart';
 import 'entry_editor_view_model.dart';
 
@@ -77,10 +78,7 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
     if (exit == EditorExit.deleted) {
       final entry = ref.read(entryEditorViewModelProvider(_args)).entry;
       final diary = ref.read(diaryViewModelProvider.notifier);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('ลบแล้ว'),
-        action: SnackBarAction(label: 'เลิกทำ', onPressed: () => diary.undoDelete(entry)),
-      ));
+      showDeletedSnackBar(ScaffoldMessenger.of(context), diary, entry);
     }
     Navigator.pop(context, true);
   }
