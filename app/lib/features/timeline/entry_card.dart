@@ -172,8 +172,8 @@ class _RecurrenceInfo extends StatelessWidget {
               minHeight: 6,
               color: color,
               backgroundColor: color.withValues(alpha: 0.15),
-              semanticsLabel: 'ความคืบหน้า',
-              semanticsValue: '${rs.done} จาก $total',
+              // semanticsValue ต้องเป็นตัวเลข จึงปล่อยให้เป็นเปอร์เซ็นต์ แล้วบอกจำนวนครั้งในป้าย
+              semanticsLabel: 'ความคืบหน้า ${rs.done} จาก $total ครั้ง',
             ),
           ),
         ],
