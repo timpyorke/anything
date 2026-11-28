@@ -1,6 +1,6 @@
 {
   // ปรับ path นี้ให้ตรงกับเครื่อง (หรือใช้ FVM: "dart.flutterSdkPath": ".fvm/flutter_sdk")
-  "dart.flutterSdkPath": "/Users/thongphitak/development/flutter",
+  "dart.flutterSdkPath": "/Users/timp/flutter",
   "dart.projectSearchDepth": 3,
   "[dart]": {
     "editor.formatOnSave": true,
