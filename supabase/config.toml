@@ -2,6 +2,10 @@
 [functions.ai-generate]
 verify_jwt = false
 
+# webhook ของ RevenueCat ไม่มี JWT ของ Supabase
+[functions.subscription]
+verify_jwt = false
+
 # เรียกโดย cron ด้วย token ของตัวเอง
 [functions.purge-photos]
 verify_jwt = false
