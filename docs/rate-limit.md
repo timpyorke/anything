@@ -5,8 +5,8 @@
 - เฟส 1: apply กับโปรเจกต์ `anything` แล้ว (version `20261127162906`)
 - เฟส 2: deploy `ai-generate` แล้ว ใช้ **Gemini** (`AI_PROVIDER`, `GEMINI_API_KEY`) เรียกจริงจากแอปสำเร็จ 1 ครั้ง (input 1,740 / output 126 token ≈ $0.0008) ตรวจ `manual_until` บนระบบจริงแล้ว (เพดานที่แอปอ่านได้เปลี่ยนเป็น Member; หักโควตาต่อนาทีได้ 10 ครั้งเทียบกับ Free 3 ครั้ง) — เกณฑ์จบของเฟส 2 ครบ
 - เฟส 3: apply migration (version `20261128030217`) และ deploy `purge-photos` แล้ว เรียกผ่านคำสั่งของ cron ได้ 200 (ลบ 0 ไฟล์ เพราะยังไม่มีรูปครบกำหนด) **ยังไม่เคยลบไฟล์จริง และยังไม่ได้ลองพื้นที่เต็มจากแอป**
-- เฟส 4: เขียนโค้ดและทดสอบในเครื่องแล้ว build ผ่านทั้ง Android และ iOS simulator; apply migration (version `20261128032012`) และ deploy `subscription` แล้ว **ยังไม่ได้ตั้ง secret, ตั้งค่า RevenueCat และสโตร์ และยังไม่เคยซื้อจริง**
-- เฟส 5: ยังไม่เริ่ม
+- เฟส 4: เขียนโค้ดและทดสอบในเครื่องแล้ว build ผ่านทั้ง Android และ iOS simulator; apply migration (version `20261128032012`) และ deploy `subscription` แล้ว ตั้ง secret `REVENUECAT_API_KEY` และ `REVENUECAT_WEBHOOK_AUTH` แล้ว **ยังไม่ได้ยืนยันด้วย test event จาก RevenueCat และยังไม่เคยซื้อจริง**
+- เฟส 5: ปุ่มลบบัญชีและการล้าง `ai_usage` ทดสอบในเครื่องแล้ว apply migration (version `20261128034216`) และ deploy `delete-account` แล้ว **ยังไม่เคยลบบัญชีจริง** งานที่เหลือและเอกสารความเป็นส่วนตัว (ร่าง) ดู [launch-checklist.md](launch-checklist.md)
 
 ## 1. ขอบเขต
 
@@ -81,7 +81,7 @@
 |---|---|---|
 | `plans` | เพดานของ `free` / `pro` | ผู้ใช้อ่าน, `service_role` แก้ |
 | `subscriptions` | `expires_at` (RevenueCat), `manual_until` (ให้สิทธิ์เอง) — ไม่มีแถว = free | ผู้ใช้อ่านของตัวเอง, `service_role` เขียน |
-| `ai_usage` | 1 แถวต่อการเรียก AI: `reserved` → `ok` / `refunded` | ผู้ใช้อ่านของตัวเอง, `service_role` เขียน |
+| `ai_usage` | 1 แถวต่อการเรียก AI: `reserved` → `ok` / `refunded` · ลบบัญชีแล้วแถวยังอยู่โดย `user_id` ว่าง (ยังนับเพดานรวม) · cron ลบแถวเก่ากว่า 90 วัน | ผู้ใช้อ่านของตัวเอง, `service_role` เขียน |
 | `consume_ai_quota(user, global_cap)` | ตรวจและหักโควตาแบบ atomic | `service_role` |
 | `get_my_usage()` | แผน ยอดใช้/เพดานของ AI รายวัน รายเดือน และพื้นที่ | ผู้ใช้ที่ล็อกอิน |
 | policy `entry_photos_insert` | ปฏิเสธการอัปโหลดเมื่อพื้นที่เต็ม | — |
