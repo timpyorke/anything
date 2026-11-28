@@ -12,6 +12,7 @@ import '../../core/widgets/section.dart';
 import 'ai_settings_page.dart';
 import 'local_model_page.dart';
 import 'settings_view_model.dart';
+import 'usage_section.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -80,7 +81,11 @@ class SettingsPage extends ConsumerWidget {
               leading: const Icon(Icons.auto_awesome_outlined),
               title: Text(t.aiForRecording),
               subtitle: Text(
-                '${t.providerLabel(ai.provider)}${ai.missingKey ? ' · ${t.noApiKeyYet}' : ''}',
+                [
+                  t.providerLabel(ai.provider),
+                  if (ai.missingKey) t.noApiKeyYet,
+                  if (ai.needsConsent) t.consentNeeded,
+                ].join(' · '),
                 // ยังใช้ AI ไม่ได้ ต้องสะดุดตา
                 style: ai.missingKey ? TextStyle(color: scheme.error) : null,
               ),
@@ -98,6 +103,7 @@ class SettingsPage extends ConsumerWidget {
               onTap: () => push(const LocalModelPage()),
             ),
           ]),
+          SectionCard(title: t.usage, children: const [UsageRows()]),
           SectionCard(title: t.general, children: [
             Padding(
               padding: const EdgeInsets.all(Insets.page),

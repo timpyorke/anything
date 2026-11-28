@@ -65,9 +65,18 @@ abstract class AppStrings {
     return p == null ? r.every : everyN(p.$1, p.$2);
   }
 
-  String providerLabel(AiProviderKind kind) => kind == AiProviderKind.onDevice ? onDeviceLabel : kind.label;
+  /// วันและเวลาตามเครื่องของผู้ใช้ เช่น เวลาที่โควตากลับมาใช้ได้
+  String fmtDateTime(DateTime d) =>
+      '${fmtDate(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  String providerLabel(AiProviderKind kind) => switch (kind) {
+        AiProviderKind.managed => managedLabel,
+        AiProviderKind.onDevice => onDeviceLabel,
+        _ => kind.label,
+      };
 
   String providerDescription(AiProviderKind kind) => switch (kind) {
+        AiProviderKind.managed => managedDescription,
         AiProviderKind.onDevice => onDeviceDescription,
         AiProviderKind.openRouter => openRouterDescription,
         _ => cloudDescription(kind.company),
@@ -313,6 +322,35 @@ abstract class AppStrings {
   String get uncheck;
   String looksBuddhist(String field, String value);
   String invalidDate(String field, String value);
+
+  // ── AI ของแอป โควตา และการใช้งาน
+  String get managedLabel;
+  String get managedDescription;
+  String get managedConsentTitle;
+  String get managedConsentMessage;
+  String get agree;
+  String get consentGiven;
+  String get consentNeeded;
+  String get withdrawConsent;
+  String get useOtherAi;
+  String get aiQuotaMinute;
+  String aiQuotaDay(String when);
+  String aiQuotaMonth(String when);
+  /// ใช้แทนเวลาเมื่อ server ไม่ได้บอกว่าจะใช้ได้อีกเมื่อไร
+  String get aiResetLater;
+  String get aiServiceBusy;
+  String get sessionExpired;
+  String get aiRequestTooLarge;
+  String managedAiFailed(int status);
+  String get usage;
+  String get plan;
+  String get planFree;
+  String get planMember;
+  String get usageAiToday;
+  String get usageAiMonth;
+  String get usageStorage;
+  String usageOf(String used, String limit);
+  String get usageFailed;
 
   // ── บริการ AI
   String get onDeviceLabel;

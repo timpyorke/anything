@@ -5,8 +5,8 @@
 ## โครงสร้าง
 ```
 app/        แอป Flutter (iOS/Android) — flutter analyze && flutter test ต้องผ่านเสมอ
-supabase/   migrations ของฐานข้อมูล (schema + RLS)
-docs/       แผนและเอกสาร (mobile-migration.md)
+supabase/   migrations ของฐานข้อมูล (schema + RLS) และ Edge Functions (functions/)
+docs/       แผนและเอกสาร (mobile-migration.md, rate-limit.md)
 .vscode/    launch.json (รัน/ดีบัก), tasks.json, settings.json
 ```
 
@@ -26,4 +26,8 @@ docs/       แผนและเอกสาร (mobile-migration.md)
 - รูปของรายการลบเฉพาะที่ส่งใน `removedPhotos` ของ `DiaryRepository.update` — รูปที่ไม่อยู่ใน `entry.photos` ไม่ถูกลบ
 - ระบบ markdown เดิม (`legacy/`) ถูกลบแล้ว กู้ได้จาก git: `git show a4b6d1d:legacy/...` หรือ `git checkout a4b6d1d -- legacy`
 - ห้าม commit `app/env.json` และ `life-export*.json` (มีข้อมูลส่วนตัว/คีย์ — อยู่ใน .gitignore แล้ว)
-- ห้ามส่งข้อมูลส่วนตัวออกไปบริการภายนอกนอกจากที่ผู้ใช้เลือกในแอป (Google AI Studio, Claude, OpenAI หรือ OpenRouter ด้วย API key ของผู้ใช้เอง)
+- ห้ามส่งข้อมูลส่วนตัวออกไปบริการภายนอกนอกจากที่ผู้ใช้เลือกในแอป:
+  - Google AI Studio, Claude, OpenAI หรือ OpenRouter ด้วย API key ของผู้ใช้เอง
+  - AI ของแอป (`AiProviderKind.managed`): ผ่าน Edge Function ของเราไปยัง Anthropic หรือ Google ด้วย key ของเรา — เฉพาะเมื่อผู้ใช้เลือกและกดยินยอมแล้ว (ยินยอมแยกตามบัญชี) ถ้าเพิ่มข้อมูลที่ส่ง หรือเพิ่มผู้ให้บริการ ต้องแก้ข้อความ `managedConsentMessage` และขอความยินยอมใหม่
+- `supabase/functions/ai-generate/` ห้ามเก็บหรือ log พรอมต์ รูป และคำตอบ · แก้แล้วต้องรัน `deno task test` ในโฟลเดอร์นั้น · สัญญา request/error ต้องตรงกับ `app/lib/ai/managed_provider.dart`
+- โควตาบังคับที่ฐานข้อมูล (`consume_ai_quota`, policy ของ storage) แอปแค่แสดงผล — ตัวเลขอยู่ในตาราง `plans`

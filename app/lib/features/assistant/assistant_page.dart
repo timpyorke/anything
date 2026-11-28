@@ -28,6 +28,20 @@ Future<LlmProvider?> ensureLlmProvider(NavigatorState nav, WidgetRef ref) async 
   final t = ref.read(stringsProvider);
   final p = await settings.resolveProvider();
   if (p != null) return p;
+  if (kind == AiProviderKind.managed) {
+    final agreed = await confirmAction(
+      // ignore: use_build_context_synchronously (context ของ Navigator อยู่ตลอดอายุแอป)
+      nav.context,
+      title: t.managedConsentTitle,
+      message: t.managedConsentMessage,
+      cancelLabel: t.later,
+      confirmLabel: t.agree,
+      destructive: false,
+    );
+    if (!agreed) return null;
+    await settings.setManagedConsent(true);
+    return settings.resolveProvider();
+  }
   await _offerSettings(
     nav,
     t,
@@ -106,7 +120,18 @@ class TurnView extends ConsumerWidget {
           child: NoticeBox(
             turn.error!,
             // ยังไม่ได้คำตอบเลย: ส่งข้อความเดิมซ้ำได้โดยไม่ต้องพิมพ์ใหม่
-            action: r == null && !turn.busy ? TextButton(onPressed: vm.retry, child: Text(t.retry)) : null,
+            action: r == null && !turn.busy
+                ? Wrap(alignment: WrapAlignment.end, children: [
+                    // โควตาเต็ม: เปลี่ยนไปใช้ AI อื่นแล้วกดลองใหม่ได้เลย
+                    if (turn.quotaReached)
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const AiSettingsPage())),
+                        child: Text(t.useOtherAi),
+                      ),
+                    TextButton(onPressed: vm.retry, child: Text(t.retry)),
+                  ])
+                : null,
           ),
         ),
       if (r != null) ...[

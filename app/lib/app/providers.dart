@@ -8,8 +8,10 @@ import '../ai/voice_recorder.dart';
 import '../data/photo_picker.dart';
 import '../data/supabase_diary_repository.dart';
 import '../data/supabase_social_auth_repository.dart';
+import '../data/supabase_usage_repository.dart';
 import '../domain/repositories/diary_repository.dart';
 import '../domain/repositories/social_auth_repository.dart';
+import '../domain/repositories/usage_repository.dart';
 import 'language.dart';
 
 /// Provider ระดับแอป (infrastructure) — ทดสอบได้โดย override ที่นี่
@@ -20,6 +22,9 @@ final secureStorageProvider = Provider<FlutterSecureStorage>((ref) => const Flut
 
 final diaryRepositoryProvider =
     Provider<DiaryRepository>((ref) => SupabaseDiaryRepository(ref.watch(supabaseClientProvider)));
+
+final usageRepositoryProvider =
+    Provider<UsageRepository>((ref) => SupabaseUsageRepository(ref.watch(supabaseClientProvider)));
 
 final socialAuthRepositoryProvider = Provider<SocialAuthRepository>(
     (ref) => SupabaseSocialAuthRepository(ref.watch(supabaseClientProvider).auth));

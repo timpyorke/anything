@@ -3,11 +3,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:http/http.dart' as http;
 
+import '../app/env.dart';
 import '../app/language.dart';
 import '../app/providers.dart';
 import 'ai_studio_provider.dart';
 import 'anthropic_provider.dart';
 import 'llm_provider.dart';
+import 'managed_provider.dart';
 import 'on_device_provider.dart';
 import 'openai_provider.dart';
 
@@ -17,6 +19,9 @@ part 'ai_settings.freezed.dart';
 String aiKeyName(AiProviderKind kind, String userId) => 'ai.${kind.slot}.key.$userId';
 String _modelName(AiProviderKind kind) => 'ai.${kind.slot}.model';
 
+/// การยินยอมให้ส่งข้อมูลผ่าน AI ของแอป แยกตามบัญชี
+String managedConsentName(String userId) => 'ai.managed.consent.$userId';
+
 /// ชื่อเดิมของ key AI Studio ที่ใช้ร่วมกันทั้งเครื่อง
 const legacyStudioKeyName = 'ai.studio.key';
 
@@ -25,11 +30,13 @@ abstract class AiSettingsState with _$AiSettingsState {
   const AiSettingsState._();
 
   const factory AiSettingsState({
-    @Default(AiProviderKind.aiStudio) AiProviderKind provider,
+    @Default(AiProviderKind.managed) AiProviderKind provider,
     /// โมเดลที่เลือกไว้ของแต่ละบริการ (ไม่มี = ใช้ค่าเริ่มต้น)
     @Default(<AiProviderKind, String>{}) Map<AiProviderKind, String> models,
     /// บริการที่บัญชีนี้บันทึก API key ไว้แล้ว
     @Default(<AiProviderKind>{}) Set<AiProviderKind> savedKeys,
+    /// บัญชีนี้ยินยอมให้ส่งข้อมูลผ่าน AI ของแอปแล้ว
+    @Default(false) bool managedConsent,
     @Default(false) bool loaded,
   }) = _AiSettingsState;
 
@@ -37,6 +44,9 @@ abstract class AiSettingsState with _$AiSettingsState {
 
   /// บริการที่เลือกอยู่ต้องใช้ key แต่ยังไม่ได้ใส่
   bool get missingKey => provider.isCloud && !savedKeys.contains(provider);
+
+  /// เลือก AI ของแอปอยู่แต่ยังไม่ได้ยินยอม
+  bool get needsConsent => provider == AiProviderKind.managed && !managedConsent;
 }
 
 final aiSettingsProvider = NotifierProvider<AiSettingsViewModel, AiSettingsState>(AiSettingsViewModel.new);
@@ -62,9 +72,22 @@ final aiModelsProvider =
     AiProviderKind.anthropic => AnthropicProvider.listModels(key, strings: strings, client: client),
     AiProviderKind.openAi || AiProviderKind.openRouter =>
       OpenAiProvider.listModels(kind, key, strings: strings, client: client),
-    AiProviderKind.onDevice => const [],
+    AiProviderKind.managed || AiProviderKind.onDevice => const [],
   };
 });
+
+/// ทางเรียก AI ของแอป — token อ่านตอนใช้จริง จึงเป็นของเซสชันปัจจุบันเสมอ
+final managedAiAccessProvider = Provider<ManagedAiAccess>((ref) => (
+      endpoint: Uri.parse('$supabaseUrl/functions/v1/ai-generate'),
+      apiKey: supabaseKey,
+      accessToken: () async {
+        final auth = ref.read(supabaseClientProvider).auth;
+        final session = auth.currentSession;
+        // แอปถูกพักไว้นาน token อาจหมดอายุก่อนการต่ออายุอัตโนมัติจะทำงาน
+        if (session != null && session.isExpired) return (await auth.refreshSession()).session?.accessToken;
+        return session?.accessToken;
+      },
+    ));
 
 /// การตั้งค่า AI — เก็บใน Keychain/Keystore (API key ไม่อยู่ในโค้ดและไม่ส่งขึ้น Supabase)
 class AiSettingsViewModel extends Notifier<AiSettingsState> {
@@ -72,7 +95,7 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
   AiSettingsState build() {
     // เปลี่ยนบัญชี → สถานะ key ต้องเป็นของบัญชีใหม่
     ref.listen(currentUserIdProvider, (_, _) {
-      state = state.copyWith(savedKeys: {});
+      state = state.copyWith(savedKeys: {}, managedConsent: false);
       load();
     });
     return const AiSettingsState();
@@ -109,12 +132,16 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
       if (model != null) models[kind] = model;
       if ((await _readKey(kind))?.isNotEmpty ?? false) savedKeys.add(kind);
     }
+    final consent = userId != null && await _storage.read(key: managedConsentName(userId)) == 'true';
     // เปลี่ยนบัญชีระหว่างอ่าน → ทิ้งผลนี้ รอบของบัญชีใหม่จะตั้งค่าเอง
     if (userId != ref.read(currentUserIdProvider)) return;
     state = AiSettingsState(
-      provider: AiProviderKind.values.firstWhere((k) => k.id == p, orElse: () => AiProviderKind.aiStudio),
+      // ยังไม่เคยเลือก: คนที่ใส่ key ไว้แล้วใช้ AI Studio ต่อ คนใหม่เริ่มที่ AI ของแอป
+      provider: AiProviderKind.values.firstWhere((k) => k.id == p,
+          orElse: () => savedKeys.isEmpty ? AiProviderKind.managed : AiProviderKind.aiStudio),
       models: models,
       savedKeys: savedKeys,
+      managedConsent: consent,
       loaded: true,
     );
   }
@@ -143,11 +170,29 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
     ref.invalidate(aiModelsProvider(kind));
   }
 
-  /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด)
+  Future<void> setManagedConsent(bool value) async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+    state = state.copyWith(managedConsent: value);
+    if (value) {
+      await _storage.write(key: managedConsentName(userId), value: 'true');
+    } else {
+      await _storage.delete(key: managedConsentName(userId));
+    }
+  }
+
+  /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด/ยินยอม)
   Future<LlmProvider?> resolveProvider() async {
     final kind = state.provider;
     final strings = ref.read(stringsProvider);
-    if (!kind.isCloud) return await OnDeviceProvider.isInstalled() ? OnDeviceProvider(strings: strings) : null;
+    if (kind == AiProviderKind.managed) {
+      if (!state.managedConsent || ref.read(currentUserIdProvider) == null) return null;
+      return ManagedProvider(
+          access: ref.read(managedAiAccessProvider), strings: strings, client: ref.read(aiHttpClientProvider));
+    }
+    if (kind == AiProviderKind.onDevice) {
+      return await OnDeviceProvider.isInstalled() ? OnDeviceProvider(strings: strings) : null;
+    }
     final key = await _readKey(kind);
     if (key == null || key.isEmpty) return null;
     final model = state.modelFor(kind);
@@ -157,7 +202,7 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
       AiProviderKind.openAi ||
       AiProviderKind.openRouter =>
         OpenAiProvider(kind: kind, apiKey: key, model: model, strings: strings),
-      AiProviderKind.onDevice => null,
+      AiProviderKind.managed || AiProviderKind.onDevice => null,
     };
   }
 }

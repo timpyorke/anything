@@ -11,6 +11,7 @@ import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/section.dart';
 import 'local_model_page.dart';
 import 'settings_view_model.dart';
+import 'usage_section.dart';
 
 /// เลือก AI ที่ใช้บันทึก พร้อม API key และโมเดลของบริการที่เลือก
 class AiSettingsPage extends ConsumerStatefulWidget {
@@ -62,6 +63,7 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
   /// ตั้งค่าของบริการที่เลือก แสดงในการ์ดเดียวกับตัวเลือกนั้น
   Widget _config(AiSettingsState ai, AppStrings t) {
     final kind = ai.provider;
+    if (kind == AiProviderKind.managed) return _managedConfig(ai, t);
     if (!kind.isCloud) {
       return ListTile(
         leading: const Icon(Icons.memory_rounded),
@@ -113,6 +115,28 @@ class _AiSettingsPageState extends ConsumerState<AiSettingsPage> {
         _ModelField(kind, key: ValueKey(kind)),
       ]),
     );
+  }
+
+  /// AI ของแอป: ความยินยอมและโควตาที่เหลือ
+  Widget _managedConfig(AiSettingsState ai, AppStrings t) {
+    final aiVm = ref.read(aiSettingsProvider.notifier);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(
+        padding: const EdgeInsets.all(Insets.page),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(ai.managedConsent ? t.consentGiven : t.managedConsentMessage),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ai.managedConsent
+                ? TextButton(onPressed: () => aiVm.setManagedConsent(false), child: Text(t.withdrawConsent))
+                : FilledButton(onPressed: () => aiVm.setManagedConsent(true), child: Text(t.agree)),
+          ),
+        ]),
+      ),
+      const Divider(),
+      const UsageRows(),
+    ]);
   }
 
   @override

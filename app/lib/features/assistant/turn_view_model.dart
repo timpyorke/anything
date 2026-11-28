@@ -29,6 +29,8 @@ abstract class TurnState with _$TurnState {
     @Default(<Exchange>[]) List<Exchange> history,
     AiResult? result,
     String? error,
+    /// [error] มาจากโควตาของ AI ของแอป
+    @Default(false) bool quotaReached,
     @Default(true) bool busy,
     @Default(false) bool applied,
   }) = _TurnState;
@@ -87,7 +89,10 @@ class TurnViewModel extends Notifier<TurnState> {
     } catch (e) {
       if (cancel.isCompleted) return;
       // ข้อความของ LlmException พร้อมแสดงอยู่แล้ว
-      if (ref.mounted) state = state.copyWith(busy: false, error: e is LlmException ? e.message : t.unexpectedError(e));
+      if (ref.mounted) {
+        state = state.copyWith(
+            busy: false, error: e is LlmException ? e.message : t.unexpectedError(e), quotaReached: e is AiQuotaException);
+      }
       await _log(diary, provider, input, null, 'error', '$e');
     }
   }
@@ -95,7 +100,7 @@ class TurnViewModel extends Notifier<TurnState> {
   /// รอบล่าสุดพังก่อนได้คำตอบ (เน็ตหลุด, บริการล่ม) — ส่งข้อความและรูปเดิมอีกครั้ง
   Future<void> retry() async {
     if (state.busy || state.result != null || state.error == null) return;
-    state = state.copyWith(busy: true, error: null);
+    state = state.copyWith(busy: true, error: null, quotaReached: false);
     await _run();
   }
 

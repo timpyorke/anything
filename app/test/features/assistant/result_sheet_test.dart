@@ -6,11 +6,13 @@ import 'package:anything/ai/llm_provider.dart';
 import 'package:anything/app/providers.dart';
 import 'package:anything/features/assistant/anything_button.dart';
 import 'package:anything/features/assistant/assistant_page.dart';
+import 'package:anything/features/settings/ai_settings_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../support/fake_diary_repository.dart';
+import '../../support/fake_usage_repository.dart';
 
 class _Llm implements LlmProvider {
   final reply = Completer<String>();
@@ -50,6 +52,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [
         diaryRepositoryProvider.overrideWithValue(FakeDiaryRepository()),
+        usageRepositoryProvider.overrideWithValue(FakeUsageRepository()),
         currentUserIdProvider.overrideWithValue('user'),
         aiSettingsProvider.overrideWith(() => _Ai(llm)),
       ],
@@ -92,5 +95,24 @@ void main() {
     await tester.tapAt(const Offset(10, 10));
     await settle(tester);
     expect(find.byType(TurnView), findsNothing);
+  });
+
+  testWidgets('a full quota offers another AI as well as retrying', (tester) async {
+    await openSheet(tester);
+    llm.reply.completeError(AiQuotaException('ครบโควตา'));
+    await settle(tester);
+    expect(find.text('ครบโควตา'), findsOneWidget);
+    expect(find.text('ลองใหม่'), findsOneWidget);
+    await tester.tap(find.text('ใช้ AI อื่น'));
+    await settle(tester);
+    expect(find.byType(AiSettingsPage), findsOneWidget);
+  });
+
+  testWidgets('other failures only offer retrying', (tester) async {
+    await openSheet(tester);
+    llm.reply.completeError(LlmException('ล่ม'));
+    await settle(tester);
+    expect(find.text('ลองใหม่'), findsOneWidget);
+    expect(find.text('ใช้ AI อื่น'), findsNothing);
   });
 }

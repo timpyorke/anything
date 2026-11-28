@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 /// ผู้ให้บริการ AI ที่ผู้ใช้เลือกได้
 enum AiProviderKind {
+  /// AI ที่แอปให้บริการเอง: key อยู่ที่ server ผู้ใช้ไม่ต้องตั้งค่า มีโควตาตามแผน
+  managed('managed', 'Anything AI'),
   onDevice('on_device', 'Gemma'),
   aiStudio('ai_studio', 'Google AI Studio', company: 'Google',
       defaultModel: 'gemini-3.5-flash-lite', keyUrl: 'aistudio.google.com/apikey', slot: 'studio'),
@@ -26,7 +28,7 @@ enum AiProviderKind {
   /// ส่วนของชื่อค่าที่เก็บในเครื่อง (ว่าง = ไม่ใช้ API key)
   final String slot;
 
-  /// บริการออนไลน์ที่ต้องใช้ API key
+  /// บริการออนไลน์ที่ต้องใช้ API key ของผู้ใช้
   bool get isCloud => slot.isNotEmpty;
   static Iterable<AiProviderKind> get cloud => values.where((k) => k.isCloud);
 }
@@ -55,4 +57,9 @@ class LlmException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+/// โควตาของ AI ของแอปเต็ม (ของผู้ใช้หรือของทั้งระบบ) — ทางออกคือรอ หรือใช้ AI อื่น
+class AiQuotaException extends LlmException {
+  AiQuotaException(super.message);
 }

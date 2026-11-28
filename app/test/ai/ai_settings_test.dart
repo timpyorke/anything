@@ -1,6 +1,7 @@
 import 'package:anything/ai/ai_settings.dart';
 import 'package:anything/ai/anthropic_provider.dart';
 import 'package:anything/ai/llm_provider.dart';
+import 'package:anything/ai/managed_provider.dart';
 import 'package:anything/ai/openai_provider.dart';
 import 'package:anything/app/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,6 +37,7 @@ void main() {
   test('the API key of one account is not usable by another', () async {
     final (c, switchTo) = await start({}, 'a');
     final vm = c.read(aiSettingsProvider.notifier);
+    await vm.setProvider(AiProviderKind.aiStudio);
     await vm.setKey(AiProviderKind.aiStudio, 'key-a');
     expect(await vm.resolveProvider(), isNotNull);
 
@@ -110,5 +112,40 @@ void main() {
     expect(s.savedKeys, {AiProviderKind.anthropic, AiProviderKind.openRouter});
     expect(s.modelFor(AiProviderKind.openRouter), 'vendor/model');
     expect(s.modelFor(AiProviderKind.anthropic), 'claude-opus-5-5');
+  });
+
+  test('a new user starts on the app’s AI, someone with a saved key stays on AI Studio', () async {
+    final (fresh, _) = await start({}, 'a');
+    expect(fresh.read(aiSettingsProvider).provider, AiProviderKind.managed);
+
+    final (existing, _) = await start({aiKeyName(AiProviderKind.aiStudio, 'a'): 'k'}, 'a');
+    expect(existing.read(aiSettingsProvider).provider, AiProviderKind.aiStudio);
+
+    final (chosen, _) = await start({'ai.provider': 'managed', aiKeyName(AiProviderKind.aiStudio, 'a'): 'k'}, 'a');
+    expect(chosen.read(aiSettingsProvider).provider, AiProviderKind.managed);
+  });
+
+  test('the app’s AI needs consent, and consent does not carry over to another account', () async {
+    final (c, switchTo) = await start({}, 'a');
+    final vm = c.read(aiSettingsProvider.notifier);
+    expect(await vm.resolveProvider(), isNull);
+
+    await vm.setManagedConsent(true);
+    expect(await vm.resolveProvider(), isA<ManagedProvider>());
+
+    switchTo('b');
+    // ต้องหมดทันที ไม่รอให้อ่านค่าของบัญชีใหม่เสร็จ
+    c.read(currentUserIdProvider);
+    expect(await vm.resolveProvider(), isNull);
+    await _settle();
+    expect(c.read(aiSettingsProvider).managedConsent, isFalse);
+
+    switchTo('a');
+    await _settle();
+    expect(await vm.resolveProvider(), isA<ManagedProvider>());
+
+    switchTo(null);
+    await _settle();
+    expect(await vm.resolveProvider(), isNull);
   });
 }

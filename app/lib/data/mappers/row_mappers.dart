@@ -6,6 +6,7 @@ import '../../domain/entry.dart';
 import '../../domain/metric.dart';
 import '../../domain/photo.dart';
 import '../../domain/recurrence.dart';
+import '../../domain/usage.dart';
 
 /// แปลงแถวจาก Supabase ↔ entity ของ domain (ที่เดียวที่รู้ชื่อคอลัมน์)
 Color parseHex(String hex) => Color(int.parse('ff${hex.replaceFirst('#', '')}', radix: 16));
@@ -77,3 +78,19 @@ Map<String, dynamic> entryToRow(Entry e) => {
       'source': e.source,
       'legacy_ref': e.legacyRef,
     };
+
+/// ผลของฟังก์ชัน get_my_usage
+UsageSummary usageFromJson(Map<String, dynamic> r) {
+  Quota quota(Object? v) {
+    final m = v as Map;
+    return (used: (m['used'] as num).toInt(), limit: (m['limit'] as num).toInt());
+  }
+
+  final ai = r['ai'] as Map;
+  return UsageSummary(
+    member: r['plan'] == 'pro',
+    aiToday: quota(ai['day']),
+    aiMonth: quota(ai['month']),
+    storage: quota(r['storage']),
+  );
+}

@@ -459,6 +459,64 @@ class EnStrings extends AppStrings {
   @override
   String invalidDate(String field, String value) => '$field "$value" is not a valid date';
 
+  // ── AI ของแอป โควตา และการใช้งาน
+  @override
+  String get managedLabel => 'Anything AI';
+  @override
+  String get managedDescription => 'No API key needed, with a quota per plan; text and photos go through our server';
+  @override
+  String get managedConsentTitle => 'Use Anything AI?';
+  @override
+  String get managedConsentMessage => 'The text and photos you send, plus context (categories, metrics, upcoming entries, entries from the last 14 days and open checklists), '
+      'go through our server to be processed by Anthropic (Claude) or Google (Gemini).\n\n'
+      'Our relay does not store what you send. It records only the number of requests, the model and token counts. '
+      'The AI history in your account still keeps messages and answers, as with any other AI.\n\n'
+      'If you do not agree, you can choose another AI in settings.';
+  @override
+  String get agree => 'Agree';
+  @override
+  String get consentGiven => 'You agreed to send data through Anything AI';
+  @override
+  String get consentNeeded => 'Not agreed yet';
+  @override
+  String get withdrawConsent => 'Withdraw consent';
+  @override
+  String get useOtherAi => 'Use another AI';
+  @override
+  String get aiQuotaMinute => 'Too many requests. Wait a moment and try again';
+  @override
+  String aiQuotaDay(String when) => 'You have used today’s Anything AI quota. Available again $when';
+  @override
+  String aiQuotaMonth(String when) => 'You have used this month’s Anything AI quota. Available again $when';
+  @override
+  String get aiResetLater => 'later';
+  @override
+  String get aiServiceBusy => 'Anything AI is full for today. Try again later or use another AI';
+  @override
+  String get sessionExpired => 'Your session expired. Sign out and sign in again';
+  @override
+  String get aiRequestTooLarge => 'The text or photos are too large. Send less at a time';
+  @override
+  String managedAiFailed(int status) => 'Anything AI failed (HTTP $status). Try again later';
+  @override
+  String get usage => 'Usage';
+  @override
+  String get plan => 'Plan';
+  @override
+  String get planFree => 'Free';
+  @override
+  String get planMember => 'Member';
+  @override
+  String get usageAiToday => 'Anything AI today';
+  @override
+  String get usageAiMonth => 'Anything AI this month';
+  @override
+  String get usageStorage => 'Photo storage';
+  @override
+  String usageOf(String used, String limit) => '$used of $limit';
+  @override
+  String get usageFailed => 'Cannot load usage';
+
   // ── บริการ AI
   @override
   String get onDeviceLabel => 'Gemma on device';

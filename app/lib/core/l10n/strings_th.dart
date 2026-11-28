@@ -456,6 +456,64 @@ class ThStrings extends AppStrings {
   @override
   String invalidDate(String field, String value) => '$field "$value" ไม่ใช่วันที่ที่ถูกต้อง';
 
+  // ── AI ของแอป โควตา และการใช้งาน
+  @override
+  String get managedLabel => 'AI ของแอป';
+  @override
+  String get managedDescription => 'ไม่ต้องใช้ API key มีโควตาตามแผน ข้อความและรูปที่แนบส่งผ่านเซิร์ฟเวอร์ของเรา';
+  @override
+  String get managedConsentTitle => 'ใช้ AI ของแอป?';
+  @override
+  String get managedConsentMessage => 'ข้อความและรูปที่คุณส่ง พร้อมข้อมูลประกอบ (หมวด ตัวชี้วัด รายการที่กำลังจะมาถึง รายการใน 14 วันล่าสุด และ checklist ที่ค้าง) '
+      'จะถูกส่งผ่านเซิร์ฟเวอร์ของเราไปประมวลผลที่ Anthropic (Claude) หรือ Google (Gemini)\n\n'
+      'ตัวส่งต่อของเราไม่เก็บเนื้อหาที่ส่ง บันทึกเฉพาะจำนวนครั้ง โมเดล และจำนวน token '
+      'ส่วนประวัติการใช้ AI ในบัญชีของคุณยังเก็บข้อความและคำตอบเหมือนใช้ AI อื่น\n\n'
+      'ถ้าไม่ยินยอม เลือก AI อื่นได้ในหน้าตั้งค่า';
+  @override
+  String get agree => 'ยินยอม';
+  @override
+  String get consentGiven => 'คุณยินยอมให้ส่งข้อมูลผ่าน AI ของแอปแล้ว';
+  @override
+  String get consentNeeded => 'ยังไม่ได้ยินยอม';
+  @override
+  String get withdrawConsent => 'ถอนความยินยอม';
+  @override
+  String get useOtherAi => 'ใช้ AI อื่น';
+  @override
+  String get aiQuotaMinute => 'ส่งถี่เกินไป รอสักครู่แล้วลองใหม่';
+  @override
+  String aiQuotaDay(String when) => 'ใช้ AI ของแอปครบโควตาวันนี้แล้ว ใช้ได้อีก $when';
+  @override
+  String aiQuotaMonth(String when) => 'ใช้ AI ของแอปครบโควตาเดือนนี้แล้ว ใช้ได้อีก $when';
+  @override
+  String get aiResetLater => 'ภายหลัง';
+  @override
+  String get aiServiceBusy => 'AI ของแอปมีผู้ใช้เต็มสำหรับวันนี้ ลองใหม่ภายหลัง หรือใช้ AI อื่น';
+  @override
+  String get sessionExpired => 'การเข้าสู่ระบบหมดอายุ ออกจากระบบแล้วเข้าใหม่';
+  @override
+  String get aiRequestTooLarge => 'ข้อความหรือรูปใหญ่เกินไป ลองส่งทีละน้อย';
+  @override
+  String managedAiFailed(int status) => 'AI ของแอปขัดข้อง (HTTP $status) ลองใหม่ภายหลัง';
+  @override
+  String get usage => 'การใช้งาน';
+  @override
+  String get plan => 'แผน';
+  @override
+  String get planFree => 'Free';
+  @override
+  String get planMember => 'Member';
+  @override
+  String get usageAiToday => 'AI ของแอป วันนี้';
+  @override
+  String get usageAiMonth => 'AI ของแอป เดือนนี้';
+  @override
+  String get usageStorage => 'พื้นที่เก็บรูป';
+  @override
+  String usageOf(String used, String limit) => '$used จาก $limit';
+  @override
+  String get usageFailed => 'โหลดการใช้งานไม่ได้';
+
   // ── บริการ AI
   @override
   String get onDeviceLabel => 'Gemma บนเครื่อง';

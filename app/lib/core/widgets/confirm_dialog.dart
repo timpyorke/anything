@@ -15,6 +15,7 @@ Future<bool> confirmAction(
     builder: (c) {
       final scheme = Theme.of(c).colorScheme;
       return AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: Text(message),
         actions: [
