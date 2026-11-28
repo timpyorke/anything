@@ -5,7 +5,8 @@
 - เฟส 1: apply กับโปรเจกต์ `anything` แล้ว (version `20261127162906`)
 - เฟส 2: deploy `ai-generate` แล้ว ใช้ **Gemini** (`AI_PROVIDER`, `GEMINI_API_KEY`) เรียกจริงจากแอปสำเร็จ 1 ครั้ง (input 1,740 / output 126 token ≈ $0.0008) ตรวจ `manual_until` บนระบบจริงแล้ว (เพดานที่แอปอ่านได้เปลี่ยนเป็น Member; หักโควตาต่อนาทีได้ 10 ครั้งเทียบกับ Free 3 ครั้ง) — เกณฑ์จบของเฟส 2 ครบ
 - เฟส 3: apply migration (version `20261128030217`) และ deploy `purge-photos` แล้ว เรียกผ่านคำสั่งของ cron ได้ 200 (ลบ 0 ไฟล์ เพราะยังไม่มีรูปครบกำหนด) **ยังไม่เคยลบไฟล์จริง และยังไม่ได้ลองพื้นที่เต็มจากแอป**
-- เฟส 4–5: ยังไม่เริ่ม
+- เฟส 4: เขียนโค้ดและทดสอบในเครื่องแล้ว build ผ่านทั้ง Android และ iOS simulator; apply migration (version `20261128032012`) และ deploy `subscription` แล้ว **ยังไม่ได้ตั้ง secret, ตั้งค่า RevenueCat และสโตร์ และยังไม่เคยซื้อจริง**
+- เฟส 5: ยังไม่เริ่ม
 
 ## 1. ขอบเขต
 
@@ -65,7 +66,8 @@
                         │                          └─ เกิน → 429
                         └──(key ของเรา)──> ผู้ให้บริการ AI ──> บันทึก token / คืนโควตา
 
-แอป ──ซื้อ──> App Store / Play ──> RevenueCat ──webhook──> Edge Function rc-webhook ──> subscriptions
+แอป ──ซื้อ──> App Store / Play ──> RevenueCat ──webhook──> Edge Function subscription ──> subscriptions
+แอป ──(JWT) หลังซื้อ/กู้การซื้อ───────────────────────────> /subscription/sync
 แอป ──อัปโหลดรูป──> Storage (policy ตรวจพื้นที่ที่เหลือ)
 ```
 
@@ -149,13 +151,32 @@ deploy: ตั้ง secret ใน Dashboard (Edge Functions → Secrets) แล
 
 ขีดจำกัดของ Edge Function: เวลา 150 วินาที (Free) / 400 วินาที (จ่ายเงิน), CPU 2 วินาที, memory 256 MB
 
-### `rc-webhook` และ `sync-subscription`
+### `subscription`
 
-- `rc-webhook`: ตรวจลายเซ็น HMAC (`X-RevenueCat-Webhook-Signature`) หรืออย่างน้อย Authorization header แบบ constant-time
-- ไม่ตีความ event ทีละชนิด: ดึงสถานะล่าสุดจาก REST API ของ RevenueCat แล้ว upsert `expires_at` — ส่งซ้ำหรือมาผิดลำดับก็ได้ผลเดิม
-- `TRANSFER`: sync ทุก id ใน `transferred_from` และ `transferred_to`
-- ข้าม id ที่ไม่ใช่ผู้ใช้ในระบบ; ตอบ 200 เมื่อรับสำเร็จ (RevenueCat ลองใหม่ 5 ครั้งในราว 80 นาที)
-- `sync-subscription`: แอปเรียกหลังซื้อ/กู้การซื้อ หรือเมื่อ SDK บอกว่าเป็นสมาชิกแต่ server บอกว่า free — ทำงานเดียวกันกับ id จาก JWT และจำกัดความถี่
+โค้ดอยู่ใน `supabase/functions/subscription/` (`verify_jwt = false` ตรวจผู้เรียกเอง) migration คือ `20261128032012_subscription_sync.sql`
+
+| เส้นทาง | ผู้เรียก | ตรวจอะไร |
+|---|---|---|
+| `POST /subscription/webhook` | RevenueCat | Authorization header และ/หรือลายเซ็น HMAC (อายุไม่เกิน 5 นาที) |
+| `POST /subscription/sync` | แอป | JWT ของผู้ใช้ (ไม่รับบัญชีนิรนาม) ได้ครั้งละ 5 วินาที |
+
+- ทั้งสองทางถาม `GET /v1/subscribers/{id}` แล้วเรียก `apply_subscription` — ไม่ตีความ event ทีละชนิด ส่งซ้ำหรือมาผิดลำดับก็ได้ผลเดิม (คำตอบที่เก่ากว่าที่เก็บอยู่ถูกทิ้ง)
+- สิทธิ์ถึง = วันหมดอายุหรือ grace period แล้วแต่อันไหนช้ากว่า; ไม่มีวันหมดอายุ = ตลอดไป; ไม่แตะ `manual_until`
+- webhook ถามเฉพาะ id ที่เป็นผู้ใช้ในระบบ (การถามด้วย id อื่นจะสร้างลูกค้าเปล่าใน RevenueCat) รวมทั้ง `transferred_from` / `transferred_to`
+- RevenueCat ตอบผิดปกติ → ตอบ 502 โดยไม่แก้สถานะ แล้ว RevenueCat ส่ง webhook ซ้ำเอง (5 ครั้งในราว 80 นาที)
+- **การซื้อแบบ sandbox (รวม TestFlight) เปิดสิทธิ์จริง** จำเป็นสำหรับการทดสอบและการรีวิวของ Apple แต่ผู้ทดสอบจะได้โควตา Member ฟรี
+
+secret: `REVENUECAT_API_KEY` (secret key แบบ **v1**), `REVENUECAT_WEBHOOK_AUTH` หรือ `REVENUECAT_WEBHOOK_SECRET` (อย่างน้อยหนึ่งอย่าง), `REVENUECAT_ENTITLEMENT` (ไม่บังคับ ค่าเริ่มต้น `pro`)
+
+### ตั้งค่าที่ต้องทำเอง (ก่อนซื้อจริงได้)
+
+1. App Store Connect และ Google Play Console: ลงนามสัญญาแบบเสียเงินและข้อมูลภาษี แล้วสร้างสินค้า subscription (เช่น รายเดือน ฿99)
+2. RevenueCat: สร้างโปรเจกต์ เชื่อมทั้งสองสโตร์ สร้าง entitlement ชื่อ `pro` ผูกสินค้า และตั้ง offering ปัจจุบัน
+3. RevenueCat → Webhooks: URL `https://<ref>.supabase.co/functions/v1/subscription/webhook` ตั้งค่า Authorization header เป็นข้อความสุ่มยาวๆ (และ/หรือเปิด HMAC signing) แล้วกด test event ต้องได้ 200
+4. Supabase → Edge Functions → Secrets: ใส่ secret ข้างบน
+5. `app/env.json`: `REVENUECAT_APPLE_KEY`, `REVENUECAT_GOOGLE_KEY` (public SDK key), `TERMS_URL`, `PRIVACY_URL` — Apple บังคับให้หน้าสมัครมีสองลิงก์หลัง
+6. Xcode: เปิด capability In-App Purchase ของ Runner
+7. ทดสอบด้วยบัญชี sandbox / license tester บนเครื่องจริง: ซื้อ ต่ออายุ ยกเลิก หมดอายุ คืนเงิน กู้การซื้อ และสลับบัญชี
 
 ## 7. แอป
 
@@ -169,8 +190,8 @@ deploy: ตั้ง secret ใน Dashboard (Edge Functions → Secrets) แล
 | อัปโหลดรูป | พื้นที่เต็ม → `StorageFullException` พร้อมข้อความ ทั้งหน้าแก้ไขและผลจาก AI; ดูและเอารูปออกได้ตามปกติ | ทำแล้ว |
 | ลบรายการ | บอกว่ารูปจะถูกลบถาวรหลัง 30 วัน | ทำแล้ว |
 | บันทึกจาก AI พังบางรายการ | เอารายการที่บันทึกแล้วออกจากชุด กดอีกครั้งไม่เกิดรายการซ้ำ | ทำแล้ว |
-| `features/subscription/` (ใหม่) | paywall, ปุ่มสมัครตอนโควตาเต็ม, กู้การซื้อ, ลิงก์จัดการการสมัคร ข้อกำหนด และความเป็นส่วนตัว | เฟส 4 |
-| RevenueCat | `purchases_flutter`; `logIn(userId)` / `logOut` ตามบัญชี ส่งแค่ UUID ไม่ส่งอีเมล | เฟส 4 |
+| `features/subscription/` | paywall, กู้การซื้อ, ลิงก์จัดการการสมัคร ข้อกำหนด และความเป็นส่วนตัว; ปุ่มสมัครในหน้าตั้งค่าและตอนโควตาของแผน Free เต็ม | ทำแล้ว |
+| RevenueCat | `purchases_flutter` 12 (ต้องใช้ Swift Package Manager); ผูกตามบัญชีที่ล็อกอิน ส่งแค่ UUID — แพลตฟอร์มที่ไม่ได้ใส่ key จะไม่แสดงปุ่มสมัคร | ทำแล้ว |
 
 ผู้ให้บริการเริ่มต้น: คนที่ยังไม่เคยเลือกและไม่มี key บันทึกไว้เริ่มที่ AI ของแอป คนที่มี key อยู่แล้วใช้ AI Studio ต่อ
 
@@ -178,7 +199,7 @@ deploy: ตั้ง secret ใน Dashboard (Edge Functions → Secrets) แล
 
 ### ความเป็นส่วนตัว
 
-- กฎใน `CLAUDE.md` แก้ให้รวม AI ของแอปแล้ว (RevenueCat ต้องเพิ่มในเฟส 4)
+- กฎใน `CLAUDE.md` รวม AI ของแอปและ RevenueCat แล้ว (SDK ของ RevenueCat เก็บข้อมูลเครื่องบางอย่างเอง ต้องระบุในนโยบายและแบบฟอร์มของสโตร์)
 - ครั้งแรกที่ใช้ AI ของแอปต้องกดยินยอม ข้อความระบุข้อมูลที่ส่งและบริษัทที่รับ
 - ก่อนเปิดจริง: อัปเดตนโยบายความเป็นส่วนตัวและแบบฟอร์มข้อมูลของ App Store / Play
 
@@ -190,7 +211,7 @@ deploy: ตั้ง secret ใน Dashboard (Edge Functions → Secrets) แล
 | 2 | `ai-generate` + `managed` ในแอป + แสดงการใช้งาน | ให้สิทธิ์ด้วย `manual_until` แล้วโควตาเปลี่ยนตาม; `flutter analyze && flutter test` ผ่าน |
 | 3 | พื้นที่เก็บรูปในแอป | เต็มแล้วเพิ่มรูปไม่ได้ แต่ดูและลบได้ |
 | 4 | RevenueCat + paywall + webhook | sandbox: ซื้อ ต่ออายุ หมดอายุ คืนเงิน ย้ายบัญชี ถูกต้อง |
-| 5 | ก่อนเปิดจริง | Supabase Pro, ตั้งเพดานงบกับผู้ให้บริการ AI, แจ้งเตือนค่าใช้จ่าย, ลบ `ai_usage` เก่ากว่า 90 วัน, เอกสารความเป็นส่วนตัว |
+| 5 | ก่อนเปิดจริง | ปุ่มลบบัญชีในแอป (สโตร์กำหนดสำหรับแอปที่สมัครบัญชีได้), Supabase Pro, ตั้งเพดานงบกับผู้ให้บริการ AI, แจ้งเตือนค่าใช้จ่าย, ลบ `ai_usage` เก่ากว่า 90 วัน, เอกสารความเป็นส่วนตัว |
 
 ## 9. เรื่องที่ยังต้องตัดสินใจ
 
