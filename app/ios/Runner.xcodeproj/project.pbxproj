@@ -158,6 +158,7 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				3BCAC6D73B2084845CE5E439 /* Copy GoogleService-Info.plist */,
 				3C97E24AD2F42255B49B4BC0 /* Upload Crashlytics dSYMs */,
 			);
 			buildRules = (
@@ -251,6 +252,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
+		};
+		3BCAC6D73B2084845CE5E439 /* Copy GoogleService-Info.plist */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy GoogleService-Info.plist";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# ไฟล์ตั้งค่า Firebase ไม่อยู่ใน git จึงคัดลอกเมื่อมีเท่านั้น\nPLIST=\"${PROJECT_DIR}/Runner/GoogleService-Info.plist\"\n[ -f \"$PLIST\" ] || exit 0\ncp \"$PLIST\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/\"\n";
 		};
 		3C97E24AD2F42255B49B4BC0 /* Upload Crashlytics dSYMs */ = {
 			isa = PBXShellScriptBuildPhase;

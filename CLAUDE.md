@@ -60,7 +60,7 @@ supabase functions deploy
 ### Firebase (โปรเจกต์ `anything-1f48b`)
 ใช้เฉพาะ Crashlytics, Analytics และ Cloud Messaging — ข้อมูลของแอปยังอยู่บน Supabase
 - `data/firebase_data_sharing_repository.dart` เป็นที่เดียวที่เรียก Firebase SDK · `app/data_sharing.dart` เก็บว่าผู้ใช้เปิดอะไรไว้
-- ค่าเชื่อมต่อมาจาก `android/app/google-services.json` และ `ios/Runner/GoogleService-Info.plist` (ไม่มี `firebase_options.dart`) ไม่มีไฟล์ก็ยัง build ได้ แอปแค่ไม่แสดงสวิตช์ในหน้าตั้งค่า
+- ค่าเชื่อมต่อมาจาก `android/app/google-services.json` และ `ios/Runner/GoogleService-Info.plist` (ไม่มี `firebase_options.dart`) ทั้งสองไฟล์อยู่ใน .gitignore · iOS คัดลอกเข้าแอปด้วย build phase `Copy GoogleService-Info.plist` (อย่าเพิ่มเป็น resource ใน Xcode) · ไม่มีไฟล์ก็ยัง build ได้ แอปแค่ไม่แสดงสวิตช์ในหน้าตั้งค่า
 - การเก็บข้อมูลปิดใน `AndroidManifest.xml` และ `Info.plist` จนกว่าผู้ใช้จะเปิด
 
 ### ฝั่ง server (supabase/)
@@ -74,7 +74,7 @@ supabase functions deploy
 - รูปของรายการลบเฉพาะที่ส่งใน `removedPhotos` ของ `DiaryRepository.update` — รูปที่ไม่อยู่ใน `entry.photos` ไม่ถูกลบ
 - รูปของรายการที่ soft delete ถูกลบถาวรหลัง 30 วันโดย `supabase/functions/purge-photos` (cron) — ถ้าแก้กำหนดต้องแก้ข้อความ `photosPurgedLater` ด้วย
 - ระบบ markdown เดิม (`legacy/`) ถูกลบแล้ว กู้ได้จาก git: `git show a4b6d1d:legacy/...` หรือ `git checkout a4b6d1d -- legacy`
-- ห้าม commit `app/env.json` และ `life-export*.json` (มีข้อมูลส่วนตัว/คีย์ — อยู่ใน .gitignore แล้ว)
+- ห้าม commit `app/env.json` และ `life-export*.json` (มีข้อมูลส่วนตัว/คีย์ — อยู่ใน .gitignore แล้ว) รวมถึงไฟล์ตั้งค่า Firebase
 - ห้ามส่งข้อมูลส่วนตัวออกไปบริการภายนอกนอกจากที่ผู้ใช้เลือกในแอป:
   - Google AI Studio, Claude, OpenAI หรือ OpenRouter ด้วย API key ของผู้ใช้เอง
   - Firebase ของ Google (Crashlytics, Analytics, Cloud Messaging): เฉพาะรายการที่ผู้ใช้เปิดเองในหน้าตั้งค่า — ห้ามส่งเนื้อหาของผู้ใช้ ข้อความของ error id บัญชี หรืออีเมล ห้ามตั้ง user id, user property หรือ custom key ถ้าจะเพิ่มข้อมูลที่ส่ง (เช่น custom event) ต้องแก้ข้อความของสวิตช์และ `docs/legal/`

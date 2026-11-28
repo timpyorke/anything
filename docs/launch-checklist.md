@@ -30,7 +30,7 @@
 
 ## 5. Firebase
 
-- [ ] ใส่ไฟล์ตั้งค่า (ดู [README](../README.md) หัวข้อ Firebase) และเพิ่ม `GoogleService-Info.plist` เข้า target Runner
+- [ ] เครื่องหรือ CI ที่ build เพื่อปล่อยต้องมีไฟล์ตั้งค่าทั้งสอง (ไม่อยู่ใน git — ดู [README](../README.md) หัวข้อ Firebase) ไม่มีไฟล์ build ผ่านแต่ Firebase ไม่ทำงาน
 - [ ] เปิด Crashlytics และ Google Analytics ใน console อัปโหลด APNs key และเปิด Push Notifications ของ App ID
 - [ ] ปิด Google signals และการแชร์ข้อมูลที่ไม่ใช้ ตั้งระยะเวลาเก็บของ Analytics แล้วใส่ใน [legal/](legal/)
 - [ ] build iOS สำหรับสโตร์ด้วย `FIREBASE_ANALYTICS_WITHOUT_ADID=true` เพื่อไม่รวมส่วนรหัสโฆษณา

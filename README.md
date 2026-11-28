@@ -101,7 +101,7 @@ npx firebase-tools apps:sdkconfig android <app id> --out app/android/app/google-
 npx firebase-tools apps:sdkconfig ios <app id> --out app/ios/Runner/GoogleService-Info.plist
 ```
 
-- iOS: ต้องเพิ่ม `GoogleService-Info.plist` เข้า target Runner ใน Xcode ด้วย (ลากไฟล์เข้าโฟลเดอร์ Runner)
+- ไฟล์ตั้งค่าทั้งสองไม่เข้า git ต้องดาวน์โหลดหลัง clone · iOS วางไว้ที่ path ข้างบนก็พอ build phase จะคัดลอกเข้าแอปเอง (ไม่ต้องเพิ่มใน Xcode)
 - Firebase console: เปิด Crashlytics, Google Analytics และอัปโหลด APNs key (`.p8`) ที่ Project settings → Cloud Messaging
 - ทดสอบการแจ้งเตือน: รัน debug เปิดสวิตช์การแจ้งเตือน แล้วนำ `FCM installation id` จาก log ไปใส่ในหน้า Send test message
 

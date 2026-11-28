@@ -46,3 +46,7 @@ app.*.map.json
 
 # ค่าเชื่อมต่อ Supabase (ห้าม commit)
 env.json
+
+# ไฟล์ตั้งค่า Firebase (ดาวน์โหลดตาม README)
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
