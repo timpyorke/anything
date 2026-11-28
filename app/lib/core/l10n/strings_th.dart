@@ -551,6 +551,24 @@ class ThStrings extends AppStrings {
   @override
   String get cannotOpenLink => 'เปิดลิงก์ไม่ได้';
   @override
+  String get about => 'เกี่ยวกับ';
+  @override
+  String get deleteAccount => 'ลบบัญชี';
+  @override
+  String get deleteAccountWhat => 'บันทึก รูป หมวด ตัวเลขที่ติดตาม ประวัติการใช้ AI และสถานะสมาชิกของบัญชีนี้จะถูกลบถาวร กู้คืนไม่ได้';
+  @override
+  String get deleteAccountKept => 'จำนวนครั้งที่ใช้ AI ของแอปถูกเก็บต่อแบบไม่ระบุตัวคนไม่เกิน 90 วัน ส่วนประวัติการชำระเงินที่ Apple หรือ Google เก็บไว้ไม่ถูกลบ';
+  @override
+  String get deleteAccountSubscription => 'บัญชีนี้เป็น Member การลบบัญชีไม่ได้ยกเลิกการสมัคร ถ้าสมัครผ่านสโตร์จะยังถูกเรียกเก็บเงินต่อ กรุณายกเลิกก่อน';
+  @override
+  String get deleteAccountAgree => 'ฉันเข้าใจว่าลบแล้วกู้คืนไม่ได้';
+  @override
+  String get deleteAccountConfirm => 'ลบบัญชีถาวร';
+  @override
+  String get accountDeleted => 'ลบบัญชีแล้ว';
+  @override
+  String deleteAccountFailed(Object error) => 'ลบบัญชีไม่สำเร็จ ลองใหม่อีกครั้ง: $error';
+  @override
   String get usageFailed => 'โหลดการใช้งานไม่ได้';
 
   // ── บริการ AI

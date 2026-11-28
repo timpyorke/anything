@@ -181,6 +181,14 @@ class AiSettingsViewModel extends Notifier<AiSettingsState> {
     }
   }
 
+  /// ลบค่าที่เก็บในเครื่องของบัญชีที่ถูกลบ (API key และความยินยอม)
+  Future<void> forgetAccount(String userId) async {
+    for (final kind in AiProviderKind.cloud) {
+      await _storage.delete(key: aiKeyName(kind, userId));
+    }
+    await _storage.delete(key: managedConsentName(userId));
+  }
+
   /// provider ที่พร้อมใช้ตามการตั้งค่าปัจจุบัน (null = ยังไม่ได้ตั้งค่า/ดาวน์โหลด/ยินยอม)
   Future<LlmProvider?> resolveProvider() async {
     final kind = state.provider;

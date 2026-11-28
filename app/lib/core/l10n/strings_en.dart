@@ -554,6 +554,24 @@ class EnStrings extends AppStrings {
   @override
   String get cannotOpenLink => 'Cannot open the link';
   @override
+  String get about => 'About';
+  @override
+  String get deleteAccount => 'Delete account';
+  @override
+  String get deleteAccountWhat => 'Your entries, photos, categories, tracked numbers, AI history and membership status will be permanently deleted. This cannot be undone';
+  @override
+  String get deleteAccountKept => 'The number of times Anything AI was used is kept, without identifying you, for up to 90 days. Payment records held by Apple or Google are not deleted';
+  @override
+  String get deleteAccountSubscription => 'This account is a Member. Deleting it does not cancel the subscription: a store subscription keeps charging until you cancel it';
+  @override
+  String get deleteAccountAgree => 'I understand this cannot be undone';
+  @override
+  String get deleteAccountConfirm => 'Delete account permanently';
+  @override
+  String get accountDeleted => 'Account deleted';
+  @override
+  String deleteAccountFailed(Object error) => 'Could not delete the account. Try again: $error';
+  @override
   String get usageFailed => 'Cannot load usage';
 
   // ── บริการ AI

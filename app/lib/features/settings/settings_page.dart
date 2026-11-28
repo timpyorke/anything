@@ -9,6 +9,7 @@ import '../../app/providers.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/section.dart';
+import '../account/delete_account_page.dart';
 import 'ai_settings_page.dart';
 import 'local_model_page.dart';
 import 'settings_view_model.dart';
@@ -56,6 +57,19 @@ class SettingsPage extends ConsumerWidget {
     final email = ref.watch(currentUserEmailProvider) ?? '-';
     final ai = ref.watch(aiSettingsProvider);
     final st = ref.watch(settingsViewModelProvider);
+    final links = ref.watch(legalLinksProvider);
+    final legal = [
+      for (final (label, url) in [(t.privacyPolicy, links.privacy), (t.termsOfUse, links.terms)])
+        if (url.isNotEmpty) (label, url),
+    ];
+    Future<void> open(String url) async {
+      final messenger = ScaffoldMessenger.of(context);
+      final opener = ref.read(openLinkProvider);
+      final uri = Uri.tryParse(url);
+      if (uri == null || !await opener(uri).catchError((_) => false)) {
+        messenger.showSnackBar(SnackBar(content: Text(t.cannotOpenLink)));
+      }
+    }
     void push(Widget page) => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => page));
     final theme = Theme.of(context);
     const chevron = Icon(Icons.chevron_right_rounded);
@@ -129,11 +143,27 @@ class SettingsPage extends ConsumerWidget {
               onTap: st.importing ? null : () => _import(ref),
             ),
           ]),
+          if (legal.isNotEmpty)
+            SectionCard(title: t.about, children: [
+              for (final (label, url) in legal)
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(label),
+                  trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                  onTap: () => open(url),
+                ),
+            ]),
           SectionCard(children: [
             ListTile(
               leading: Icon(Icons.logout_rounded, color: scheme.error),
               title: Text(t.signOut, style: theme.textTheme.bodyLarge?.copyWith(color: scheme.error)),
               onTap: () => _signOut(context, ref),
+            ),
+            ListTile(
+              leading: const Icon(Icons.person_remove_outlined),
+              title: Text(t.deleteAccount),
+              trailing: chevron,
+              onTap: () => push(const DeleteAccountPage()),
             ),
           ]),
         ],

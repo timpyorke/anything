@@ -360,6 +360,15 @@ abstract class AppStrings {
   String get usageStorage;
   String usageOf(String used, String limit);
   String get usageFailed;
+  String get about;
+  String get deleteAccount;
+  String get deleteAccountWhat;
+  String get deleteAccountKept;
+  String get deleteAccountSubscription;
+  String get deleteAccountAgree;
+  String get deleteAccountConfirm;
+  String get accountDeleted;
+  String deleteAccountFailed(Object error);
   String get subscribe;
   String get manageSubscription;
   String get memberAlready;

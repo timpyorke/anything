@@ -6,7 +6,7 @@
 ```
 app/        แอป Flutter (iOS/Android) — flutter analyze && flutter test ต้องผ่านเสมอ
 supabase/   migrations ของฐานข้อมูล (schema + RLS) และ Edge Functions (functions/)
-docs/       แผนและเอกสาร (mobile-migration.md, rate-limit.md)
+docs/       แผนและเอกสาร (mobile-migration.md, rate-limit.md, launch-checklist.md, legal/)
 .vscode/    launch.json (รัน/ดีบัก), tasks.json, settings.json
 ```
 
@@ -34,4 +34,6 @@ docs/       แผนและเอกสาร (mobile-migration.md, rate-limi
 - แก้ `supabase/functions/<ชื่อ>/` แล้วต้องรัน `deno task test` ในโฟลเดอร์นั้น
 - `supabase/functions/ai-generate/` ห้ามเก็บหรือ log พรอมต์ รูป และคำตอบ · สัญญา request/error ต้องตรงกับ `app/lib/ai/managed_provider.dart`
 - สถานะสมาชิกเขียนได้จาก `supabase/functions/subscription/` เท่านั้น (ผ่าน `apply_subscription`) แอปไม่เชื่อ SDK อย่างเดียว ต้องให้ server ยืนยัน · ชื่อ entitlement `pro` ต้องตรงกันระหว่าง RevenueCat, secret ของฟังก์ชัน และ `RevenueCatBillingRepository`
+- เปลี่ยนข้อมูลที่เก็บ ระยะเวลาเก็บ หรือผู้ให้บริการที่รับข้อมูล ต้องแก้ `docs/legal/` ให้ตรง
+- ลบบัญชีทำที่ `supabase/functions/delete-account/` — ตารางใหม่ที่มีข้อมูลผู้ใช้ต้อง `references auth.users on delete cascade` และไฟล์ใน storage ต้องอยู่ใต้โฟลเดอร์ `<user id>/` ของ bucket ที่ฟังก์ชันนี้ลบ (เพิ่ม bucket ต้องแก้ฟังก์ชัน)
 - โควตาบังคับที่ฐานข้อมูล (`consume_ai_quota`, policy ของ storage) แอปแค่แสดงผล — ตัวเลขอยู่ในตาราง `plans`

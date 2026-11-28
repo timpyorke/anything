@@ -9,9 +9,11 @@ import '../ai/on_device_provider.dart';
 import '../ai/voice_recorder.dart';
 import '../data/photo_picker.dart';
 import '../data/revenuecat_billing_repository.dart';
+import '../data/supabase_account_repository.dart';
 import '../data/supabase_diary_repository.dart';
 import '../data/supabase_social_auth_repository.dart';
 import '../data/supabase_usage_repository.dart';
+import '../domain/repositories/account_repository.dart';
 import '../domain/repositories/billing_repository.dart';
 import '../domain/repositories/diary_repository.dart';
 import '../domain/repositories/social_auth_repository.dart';
@@ -30,6 +32,9 @@ final diaryRepositoryProvider =
 
 final usageRepositoryProvider =
     Provider<UsageRepository>((ref) => SupabaseUsageRepository(ref.watch(supabaseClientProvider)));
+
+final accountRepositoryProvider =
+    Provider<AccountRepository>((ref) => SupabaseAccountRepository(ref.watch(supabaseClientProvider)));
 
 final billingRepositoryProvider = Provider<BillingRepository>((ref) => RevenueCatBillingRepository(
     apiKey: switch (defaultTargetPlatform) {
