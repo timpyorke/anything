@@ -2,6 +2,9 @@
 [functions.ai-generate]
 verify_jwt = false
 
+[functions.delete-account]
+verify_jwt = false
+
 # webhook ของ RevenueCat ไม่มี JWT ของ Supabase
 [functions.subscription]
 verify_jwt = false
