@@ -89,7 +89,23 @@ supabase functions deploy
 
 ใช้ API key ของ AI แบบเสียเงิน เพราะ Gemini แบบฟรีนำข้อมูลไปปรับปรุงผลิตภัณฑ์
 
-### 3. รันแอป
+### 3. Firebase (ไม่บังคับ)
+
+ใช้ Crashlytics, Analytics และ Cloud Messaging ของโปรเจกต์ `anything-1f48b` ถ้าไม่มีไฟล์ตั้งค่า แอปยัง build และใช้งานได้ แค่ไม่แสดงสวิตช์ในหมวดความเป็นส่วนตัว
+
+```bash
+npx firebase-tools login
+npx firebase-tools apps:create android --package-name com.codenour.anything --project anything-1f48b   # ครั้งแรกครั้งเดียว
+npx firebase-tools apps:create ios --bundle-id com.codenour.anything --project anything-1f48b          # ครั้งแรกครั้งเดียว
+npx firebase-tools apps:sdkconfig android <app id> --out app/android/app/google-services.json
+npx firebase-tools apps:sdkconfig ios <app id> --out app/ios/Runner/GoogleService-Info.plist
+```
+
+- iOS: ต้องเพิ่ม `GoogleService-Info.plist` เข้า target Runner ใน Xcode ด้วย (ลากไฟล์เข้าโฟลเดอร์ Runner)
+- Firebase console: เปิด Crashlytics, Google Analytics และอัปโหลด APNs key (`.p8`) ที่ Project settings → Cloud Messaging
+- ทดสอบการแจ้งเตือน: รัน debug เปิดสวิตช์การแจ้งเตือน แล้วนำ `FCM installation id` จาก log ไปใส่ในหน้า Send test message
+
+### 4. รันแอป
 
 ```bash
 cd app

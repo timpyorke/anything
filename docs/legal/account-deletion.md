@@ -18,7 +18,7 @@
 
 ## สิ่งที่ยังเก็บ
 
-จำนวนครั้งที่ใช้ AI ของแอปแบบไม่ระบุตัวคน ไม่เกิน 90 วัน · ประวัติการชำระเงินที่ Apple หรือ Google เก็บ · สำเนาสำรองจนครบรอบของผู้ให้บริการ
+จำนวนครั้งที่ใช้ AI ของแอปแบบไม่ระบุตัวคน ไม่เกิน 90 วัน · ประวัติการชำระเงินที่ Apple หรือ Google เก็บ · สำเนาสำรองจนครบรอบของผู้ให้บริการ · รายงานข้อผิดพลาดและสถิติที่คุณเคยเปิดส่งไปยัง Google (Firebase) ซึ่งไม่ผูกกับบัญชี จนครบระยะเวลาเก็บ
 
 การลบบัญชี**ไม่ยกเลิกการสมัครสมาชิก** ต้องยกเลิกใน App Store หรือ Google Play
 
@@ -42,6 +42,6 @@ Entries, photos, categories, tracked numbers, AI history, membership status and 
 
 ## Kept
 
-An anonymous count of Anything AI requests for up to 90 days · payment records held by Apple or Google · backups until the provider's retention period ends.
+An anonymous count of Anything AI requests for up to 90 days · payment records held by Apple or Google · backups until the provider's retention period ends · crash reports and statistics you had turned on, sent to Google (Firebase) without your account ID, until their retention period ends.
 
 Deleting your account **does not cancel a subscription**. Cancel it in the App Store or Google Play.

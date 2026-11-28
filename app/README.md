@@ -58,10 +58,10 @@ Clean Architecture + MVVM ใช้ Riverpod และ freezed
 
 ```
 lib/
-  main.dart     เริ่ม Supabase และ Gemma โหลดภาษากับการตั้งค่า AI แล้วเปิดแอป
+  main.dart     เริ่ม Firebase, Supabase และ Gemma โหลดภาษากับการตั้งค่า AI แล้วเปิดแอป
   app/          MaterialApp + ล็อกอิน, ธีม, ภาษา, ค่าจาก env, provider ระดับ infrastructure
   domain/       entity, กฎ validate และ repositories/ (interface)
-  data/         implement repository (Supabase, RevenueCat), เลือกรูป, mappers/ แถว DB ↔ entity
+  data/         implement repository (Supabase, RevenueCat, Firebase), เลือกรูป, mappers/ แถว DB ↔ entity
   ai/           ผู้ให้บริการ AI, การตั้งค่า AI, อัดเสียง
   core/         l10n/ (ข้อความไทย/อังกฤษ), utils/, widgets/
   features/     account, assistant, auth, diary, entry_editor, overview,

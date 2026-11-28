@@ -57,6 +57,12 @@ supabase functions deploy
 - Gemma บนเครื่องทดสอบบน iOS Simulator ไม่ได้ (ใช้ GPU ไม่ได้)
 - เพิ่ม `AiProviderKind` ต้องเพิ่ม migration แก้ check constraint `ai_logs_provider_check` ให้ตรงกับ `id`
 
+### Firebase (โปรเจกต์ `anything-1f48b`)
+ใช้เฉพาะ Crashlytics, Analytics และ Cloud Messaging — ข้อมูลของแอปยังอยู่บน Supabase
+- `data/firebase_data_sharing_repository.dart` เป็นที่เดียวที่เรียก Firebase SDK · `app/data_sharing.dart` เก็บว่าผู้ใช้เปิดอะไรไว้
+- ค่าเชื่อมต่อมาจาก `android/app/google-services.json` และ `ios/Runner/GoogleService-Info.plist` (ไม่มี `firebase_options.dart`) ไม่มีไฟล์ก็ยัง build ได้ แอปแค่ไม่แสดงสวิตช์ในหน้าตั้งค่า
+- การเก็บข้อมูลปิดใน `AndroidManifest.xml` และ `Info.plist` จนกว่าผู้ใช้จะเปิด
+
 ### ฝั่ง server (supabase/)
 - แต่ละฟังก์ชันแยก `index.ts` (อ่าน env แล้ว `Deno.serve`) กับ `handler.ts` (รับ dependency เข้ามา) — `handler_test.ts` ใช้ของปลอม ไม่ต่อเครือข่าย
 - ทุกฟังก์ชันตั้ง `verify_jwt = false` ใน `config.toml` จึง**ต้องตรวจสิทธิ์ใน handler เอง** (token ของผู้ใช้, secret ของ webhook หรือ token ของ cron)
@@ -71,6 +77,7 @@ supabase functions deploy
 - ห้าม commit `app/env.json` และ `life-export*.json` (มีข้อมูลส่วนตัว/คีย์ — อยู่ใน .gitignore แล้ว)
 - ห้ามส่งข้อมูลส่วนตัวออกไปบริการภายนอกนอกจากที่ผู้ใช้เลือกในแอป:
   - Google AI Studio, Claude, OpenAI หรือ OpenRouter ด้วย API key ของผู้ใช้เอง
+  - Firebase ของ Google (Crashlytics, Analytics, Cloud Messaging): เฉพาะรายการที่ผู้ใช้เปิดเองในหน้าตั้งค่า — ห้ามส่งเนื้อหาของผู้ใช้ ข้อความของ error id บัญชี หรืออีเมล ห้ามตั้ง user id, user property หรือ custom key ถ้าจะเพิ่มข้อมูลที่ส่ง (เช่น custom event) ต้องแก้ข้อความของสวิตช์และ `docs/legal/`
   - RevenueCat (การสมัคร Member): SDK ในแอปและ Edge Function `subscription` ส่งเฉพาะ id บัญชี (UUID) กับข้อมูลการซื้อ — ห้ามตั้งอีเมล ชื่อ หรือ subscriber attribute อื่น
   - AI ของแอป (`AiProviderKind.managed`): ผ่าน Edge Function ของเราไปยัง Anthropic หรือ Google ด้วย key ของเรา — เฉพาะเมื่อผู้ใช้เลือกและกดยินยอมแล้ว (ยินยอมแยกตามบัญชี) ถ้าเพิ่มข้อมูลที่ส่ง หรือเพิ่มผู้ให้บริการ ต้องแก้ข้อความ `managedConsentMessage` และขอความยินยอมใหม่
 - แก้ `supabase/functions/<ชื่อ>/` แล้วต้องรัน `deno task test` ในโฟลเดอร์นั้น
