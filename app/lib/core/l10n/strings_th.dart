@@ -712,4 +712,22 @@ class ThStrings extends AppStrings {
   String modelSize(String size) => 'ขนาด $size';
   @override
   String get localModelNote => 'ใช้ฟังเสียงที่พูด (ถอดเป็นข้อความในเครื่อง) และใช้บันทึกได้เมื่อเลือก AI ในเครื่อง';
+  @override
+  String get privacy => 'ความเป็นส่วนตัว';
+  @override
+  String get shareNotifications => 'การแจ้งเตือน';
+  @override
+  String get shareNotificationsDetail => 'รับข้อความแจ้งเตือนจากแอปผ่าน Firebase ของ Google';
+  @override
+  String get shareCrashReports => 'ส่งรายงานเมื่อแอปมีปัญหา';
+  @override
+  String get shareCrashReportsDetail => 'ข้อมูลเครื่องและจุดที่โค้ดผิดพลาดส่งไปยัง Google (Crashlytics) เราไม่แนบบันทึกของคุณ';
+  @override
+  String get shareAnalytics => 'ส่งสถิติการใช้งาน';
+  @override
+  String get shareAnalyticsDetail => 'การเปิดใช้แอปและข้อมูลเครื่องส่งไปยัง Google (Analytics) ไม่มีเนื้อหาบันทึก และไม่ใช้เพื่อโฆษณา';
+  @override
+  String get notificationsDenied => 'ยังไม่ได้อนุญาตการแจ้งเตือน เปิดได้ในการตั้งค่าของเครื่อง';
+  @override
+  String sharingFailed(Object error) => 'เปลี่ยนการตั้งค่าไม่สำเร็จ: $error';
 }

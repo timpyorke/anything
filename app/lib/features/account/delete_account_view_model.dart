@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../ai/ai_settings.dart';
+import '../../app/data_sharing.dart';
 import '../../app/language.dart';
 import '../../app/providers.dart';
 
@@ -71,6 +72,7 @@ class DeleteAccountViewModel extends Notifier<DeleteAccountState> {
     final accounts = ref.read(accountRepositoryProvider);
     final ai = ref.read(aiSettingsProvider.notifier);
     final signOut = ref.read(signOutProvider);
+    final sharing = ref.read(dataSharingProvider.notifier);
     final t = ref.read(stringsProvider);
     state = state.copyWith(busy: true, error: null);
     try {
@@ -83,6 +85,9 @@ class DeleteAccountViewModel extends Notifier<DeleteAccountState> {
     // บัญชีถูกลบแล้ว ขั้นเก็บกวาดในเครื่องพังก็ยังต้องออกจากระบบ
     try {
       await ai.forgetAccount(userId);
+    } catch (_) {}
+    try {
+      await sharing.disableAll();
     } catch (_) {}
     if (ref.mounted) state = state.copyWith(deleted: true);
     try {

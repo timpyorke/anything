@@ -361,6 +361,17 @@ abstract class AppStrings {
   String usageOf(String used, String limit);
   String get usageFailed;
   String get about;
+
+  // ── Firebase (ปิดไว้จนกว่าผู้ใช้จะเปิด)
+  String get privacy;
+  String get shareNotifications;
+  String get shareNotificationsDetail;
+  String get shareCrashReports;
+  String get shareCrashReportsDetail;
+  String get shareAnalytics;
+  String get shareAnalyticsDetail;
+  String get notificationsDenied;
+  String sharingFailed(Object error);
   String get deleteAccount;
   String get deleteAccountWhat;
   String get deleteAccountKept;

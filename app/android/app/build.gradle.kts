@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase: ใช้เมื่อมีไฟล์ตั้งค่า ไม่มีก็ยัง build ได้และแอปจะไม่แสดงตัวเลือกของ Firebase
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 android {
     namespace = "com.codenour.anything"
     compileSdk = flutter.compileSdkVersion

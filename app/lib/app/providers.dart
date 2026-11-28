@@ -15,6 +15,7 @@ import '../data/supabase_social_auth_repository.dart';
 import '../data/supabase_usage_repository.dart';
 import '../domain/repositories/account_repository.dart';
 import '../domain/repositories/billing_repository.dart';
+import '../domain/repositories/data_sharing_repository.dart';
 import '../domain/repositories/diary_repository.dart';
 import '../domain/repositories/social_auth_repository.dart';
 import '../domain/repositories/usage_repository.dart';
@@ -42,6 +43,9 @@ final billingRepositoryProvider = Provider<BillingRepository>((ref) => RevenueCa
       TargetPlatform.android => revenueCatGoogleKey,
       _ => '',
     }));
+
+/// Firebase — main.dart override ด้วยของจริงเมื่อ build มีไฟล์ตั้งค่า
+final dataSharingRepositoryProvider = Provider<DataSharingRepository>((ref) => const NoDataSharingRepository());
 
 /// ผูกการซื้อกับบัญชีที่ล็อกอินอยู่ (แอป watch ไว้ตลอด)
 final billingSessionProvider = Provider<void>((ref) {

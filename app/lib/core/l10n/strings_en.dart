@@ -715,4 +715,22 @@ class EnStrings extends AppStrings {
   String modelSize(String size) => 'Size $size';
   @override
   String get localModelNote => 'Used to transcribe your speech on the device, and to record entries when on-device AI is selected';
+  @override
+  String get privacy => 'Privacy';
+  @override
+  String get shareNotifications => 'Notifications';
+  @override
+  String get shareNotificationsDetail => 'Receive messages from the app through Google Firebase';
+  @override
+  String get shareCrashReports => 'Send crash reports';
+  @override
+  String get shareCrashReportsDetail => 'Device details and where the code failed go to Google (Crashlytics). We do not attach your entries';
+  @override
+  String get shareAnalytics => 'Send usage statistics';
+  @override
+  String get shareAnalyticsDetail => 'App usage and device details go to Google (Analytics). No entry content, and nothing is used for ads';
+  @override
+  String get notificationsDenied => 'Notifications are not allowed. You can allow them in your device settings';
+  @override
+  String sharingFailed(Object error) => 'Could not change the setting: $error';
 }

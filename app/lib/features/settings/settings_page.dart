@@ -4,11 +4,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../ai/ai_settings.dart';
 import '../../app/app_theme.dart';
+import '../../app/data_sharing.dart';
 import '../../app/language.dart';
 import '../../app/providers.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/section.dart';
+import '../../domain/repositories/data_sharing_repository.dart';
 import '../account/delete_account_page.dart';
 import 'ai_settings_page.dart';
 import 'local_model_page.dart';
@@ -58,6 +60,8 @@ class SettingsPage extends ConsumerWidget {
     final ai = ref.watch(aiSettingsProvider);
     final st = ref.watch(settingsViewModelProvider);
     final links = ref.watch(legalLinksProvider);
+    final canShare = ref.watch(dataSharingRepositoryProvider).isAvailable;
+    final sharing = ref.watch(dataSharingProvider);
     final legal = [
       for (final (label, url) in [(t.privacyPolicy, links.privacy), (t.termsOfUse, links.terms)])
         if (url.isNotEmpty) (label, url),
@@ -132,6 +136,21 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
           ]),
+          if (canShare)
+            SectionCard(title: t.privacy, children: [
+              for (final (kind, icon, title, detail) in [
+                (DataSharing.notifications, Icons.notifications_outlined, t.shareNotifications, t.shareNotificationsDetail),
+                (DataSharing.crashReports, Icons.bug_report_outlined, t.shareCrashReports, t.shareCrashReportsDetail),
+                (DataSharing.analytics, Icons.insights_outlined, t.shareAnalytics, t.shareAnalyticsDetail),
+              ])
+                SwitchListTile(
+                  secondary: Icon(icon),
+                  title: Text(title),
+                  subtitle: Text(detail),
+                  value: sharing.contains(kind),
+                  onChanged: (v) => ref.read(settingsViewModelProvider.notifier).setSharing(kind, v),
+                ),
+            ]),
           SectionCard(title: t.data, children: [
             ListTile(
               leading: const Icon(Icons.file_upload_outlined),

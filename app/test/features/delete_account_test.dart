@@ -3,10 +3,12 @@ import 'dart:convert';
 
 import 'package:anything/ai/ai_settings.dart';
 import 'package:anything/ai/llm_provider.dart';
+import 'package:anything/app/data_sharing.dart';
 import 'package:anything/app/providers.dart';
 import 'package:anything/core/l10n/strings_th.dart';
 import 'package:anything/data/supabase_account_repository.dart';
 import 'package:anything/domain/repositories/account_repository.dart';
+import 'package:anything/domain/repositories/data_sharing_repository.dart';
 import 'package:anything/features/account/delete_account_page.dart';
 import 'package:anything/features/account/delete_account_view_model.dart';
 import 'package:anything/features/settings/settings_page.dart';
@@ -19,6 +21,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../support/fake_billing_repository.dart';
+import '../support/fake_data_sharing_repository.dart';
 import '../support/fake_diary_repository.dart';
 import '../support/fake_usage_repository.dart';
 
@@ -43,6 +46,7 @@ void main() {
   late _Accounts accounts;
   late FakeUsageRepository usage;
   late FakeBillingRepository billing;
+  late FakeDataSharingRepository sharing;
   late int signOuts;
   late List<Uri> opened;
 
@@ -56,6 +60,7 @@ void main() {
     accounts = _Accounts();
     usage = FakeUsageRepository();
     billing = FakeBillingRepository();
+    sharing = FakeDataSharingRepository();
     signOuts = 0;
     opened = [];
   });
@@ -68,6 +73,7 @@ void main() {
         accountRepositoryProvider.overrideWithValue(accounts),
         usageRepositoryProvider.overrideWithValue(usage),
         billingRepositoryProvider.overrideWithValue(billing),
+        dataSharingRepositoryProvider.overrideWithValue(sharing),
         signOutProvider.overrideWithValue(() async => signOuts++),
         legalLinksProvider.overrideWithValue(links),
         openLinkProvider.overrideWithValue((url) async {
@@ -83,6 +89,15 @@ void main() {
     await _settle();
     return (c, c.read(deleteAccountViewModelProvider.notifier));
   }
+
+  test('deleting the account turns Firebase collection off', () async {
+    final (c, vm) = await start();
+    await c.read(dataSharingProvider.notifier).setEnabled(DataSharing.analytics, true);
+    vm.setAgreed(true);
+    await vm.delete();
+    expect(sharing.calls.last, (DataSharing.analytics, false));
+    expect(c.read(dataSharingProvider), isEmpty);
+  });
 
   test('nothing is deleted until the user agrees', () async {
     final (_, vm) = await start();

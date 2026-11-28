@@ -7,7 +7,9 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
+import '../../app/data_sharing.dart';
 import '../../app/language.dart';
+import '../../domain/repositories/data_sharing_repository.dart';
 import '../../domain/repositories/diary_repository.dart';
 import '../diary/diary_view_model.dart';
 
@@ -70,6 +72,20 @@ class SettingsViewModel extends Notifier<SettingsState> {
     await ref.read(aiSettingsProvider.notifier).setKey(kind, key);
     if (!ref.mounted) return;
     state = state.copyWith(notice: ref.read(stringsProvider).apiKeySaved);
+  }
+
+  /// เปิดหรือปิดการใช้ Firebase ที่ผู้ใช้เลือก ทำไม่สำเร็จแจ้งที่ state.notice
+  Future<void> setSharing(DataSharing kind, bool enabled) async {
+    final sharing = ref.read(dataSharingProvider.notifier);
+    final t = ref.read(stringsProvider);
+    state = state.copyWith(notice: null);
+    String? notice;
+    try {
+      if (!await sharing.setEnabled(kind, enabled)) notice = t.notificationsDenied;
+    } catch (e) {
+      notice = t.sharingFailed(e);
+    }
+    if (ref.mounted && notice != null) state = state.copyWith(notice: notice);
   }
 
   /// นำเข้าไฟล์ export ของระบบเดิม ผลสรุปอยู่ที่ state.notice

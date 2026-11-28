@@ -4,6 +4,7 @@ import 'package:anything/ai/ai_settings.dart';
 import 'package:anything/ai/llm_provider.dart';
 import 'package:anything/ai/managed_provider.dart';
 import 'package:anything/app/providers.dart';
+import 'package:anything/domain/repositories/data_sharing_repository.dart';
 import 'package:anything/features/assistant/assistant_page.dart';
 import 'package:anything/features/settings/ai_settings_page.dart';
 import 'package:anything/features/settings/local_model_page.dart';
@@ -15,12 +16,15 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../support/fake_data_sharing_repository.dart';
 import '../../support/fake_diary_repository.dart';
 import '../../support/fake_usage_repository.dart';
 
 void main() {
   late int signOuts;
   late FakeUsageRepository usage;
+  DataSharingRepository sharing = const NoDataSharingRepository();
+  setUp(() => sharing = const NoDataSharingRepository());
 
   /// [provider] = AI ที่ผู้ใช้เลือกไว้ (null = ผู้ใช้ใหม่)
   Future<void> pump(WidgetTester tester, Widget home, {AiProviderKind? provider}) async {
@@ -31,6 +35,7 @@ void main() {
       overrides: [
         diaryRepositoryProvider.overrideWithValue(FakeDiaryRepository()),
         usageRepositoryProvider.overrideWithValue(usage),
+        dataSharingRepositoryProvider.overrideWithValue(sharing),
         currentUserIdProvider.overrideWithValue('user'),
         currentUserEmailProvider.overrideWithValue('name@example.com'),
         signOutProvider.overrideWithValue(() async => signOuts++),
@@ -84,6 +89,38 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Google AI Studio'), findsOneWidget);
+  });
+
+  testWidgets('without Firebase there are no privacy switches', (tester) async {
+    await pump(tester, const SettingsPage());
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(find.byType(SwitchListTile), findsNothing);
+  });
+
+  testWidgets('privacy switches start off and a refused permission is explained', (tester) async {
+    final fake = FakeDataSharingRepository()..allowed = false;
+    sharing = fake;
+    await pump(tester, const SettingsPage());
+
+    Future<void> toggle(String title) async {
+      await tester.scrollUntilVisible(find.text(title), 120, scrollable: find.byType(Scrollable).first);
+      await tester.ensureVisible(find.text(title));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(title));
+      await tester.pumpAndSettle();
+    }
+
+    bool isOn(String title) =>
+        tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, title)).value;
+
+    await toggle('ส่งสถิติการใช้งาน');
+    expect(isOn('ส่งสถิติการใช้งาน'), isTrue);
+
+    await toggle('การแจ้งเตือน');
+    expect(isOn('การแจ้งเตือน'), isFalse);
+    expect(find.textContaining('ยังไม่ได้อนุญาตการแจ้งเตือน'), findsOneWidget);
+    expect(fake.calls, [(DataSharing.analytics, true)]);
   });
 
   testWidgets('signing out asks first', (tester) async {
