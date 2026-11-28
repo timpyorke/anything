@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@1.14.0"
+  },
+  "tasks": {
+    "test": "deno test --allow-env"
+  },
+  "fmt": { "lineWidth": 120 }
+}

@@ -1,0 +1,3 @@
+# ตรวจสิทธิ์ในโค้ดของฟังก์ชันเอง (ถาม Supabase Auth) — การตรวจของ platform รองรับเฉพาะ key แบบ JWT เดิม
+[functions.ai-generate]
+verify_jwt = false
