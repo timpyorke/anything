@@ -1,0 +1,72 @@
+name: Deploy Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: แสดงสิ่งที่จะเปลี่ยนเท่านั้น (เอาเครื่องหมายออกเพื่อ deploy จริง)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-supabase
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test Edge Functions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Require the main branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::deploy ได้จาก branch main เท่านั้น"
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: "2.9.8"
+      - name: Run the tests of every function
+        run: |
+          for dir in supabase/functions/*/; do
+            echo "::group::$dir"
+            (cd "$dir" && deno task test)
+            echo "::endgroup::"
+          done
+
+  deploy:
+    name: Migrations and functions
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: .github/scripts/require-env.sh SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          # CLI 3.x เปลี่ยนให้ db push ชี้ฐานข้อมูล local เป็นค่าเริ่มต้น จะอัปเกรดต้องแก้คำสั่งข้างล่างด้วย
+          version: "2.122.1"
+      - name: Link the project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Show pending migrations
+        run: supabase db push --linked --dry-run
+      # migration ก่อนฟังก์ชัน เพราะฟังก์ชันใหม่อาจใช้ตารางใหม่
+      - name: Apply migrations
+        if: ${{ !inputs.dry_run }}
+        run: supabase db push --linked --yes
+      - name: Deploy functions
+        if: ${{ !inputs.dry_run }}
+        run: supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"

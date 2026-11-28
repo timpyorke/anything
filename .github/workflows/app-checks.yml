@@ -1,0 +1,36 @@
+# ตรวจแอปก่อน deploy — เรียกจาก workflow deploy ของ Android และ iOS
+name: App checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Analyze and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Require the main branch
+        if: github.ref != 'refs/heads/main'
+        working-directory: .
+        run: |
+          echo "::error::deploy ได้จาก branch main เท่านั้น"
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: "3.50.1"
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: dart run build_runner build
+      - run: flutter analyze
+      - run: flutter test

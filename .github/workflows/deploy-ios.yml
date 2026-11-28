@@ -1,0 +1,113 @@
+name: Deploy iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: เลข build (ว่าง = คำนวณให้)
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ios
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/app-checks.yml
+
+  testflight:
+    name: Build and upload to TestFlight
+    needs: checks
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check settings
+        env:
+          APP_ENV_JSON: ${{ secrets.APP_ENV_JSON }}
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: >
+          .github/scripts/require-env.sh APP_ENV_JSON GOOGLE_SERVICE_INFO_PLIST
+          IOS_CERTIFICATE_BASE64 IOS_CERTIFICATE_PASSWORD IOS_PROFILE_BASE64
+          APPSTORE_API_KEY_ID APPSTORE_API_ISSUER_ID APPSTORE_API_PRIVATE_KEY
+
+      - name: Set the build number
+        env:
+          BUILD_NUMBER_INPUT: ${{ inputs.build_number }}
+          BUILD_NUMBER_OFFSET: ${{ vars.BUILD_NUMBER_OFFSET }}
+        run: .github/scripts/build-number.sh >> "$GITHUB_ENV"
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: "3.50.1"
+          channel: stable
+          cache: true
+
+      - name: Write config files
+        env:
+          APP_ENV_JSON: ${{ secrets.APP_ENV_JSON }}
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          printf '%s' "$APP_ENV_JSON" > app/env.json
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > app/ios/Runner/GoogleService-Info.plist
+          jq -e '.SUPABASE_URL and .SUPABASE_PUBLISHABLE_KEY' app/env.json > /dev/null
+          plutil -lint app/ios/Runner/GoogleService-Info.plist
+
+      - name: Set up signing
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: .github/scripts/ios-signing.sh
+
+      - run: flutter pub get --enforce-lockfile
+        working-directory: app
+      - run: dart run build_runner build
+        working-directory: app
+
+      - name: Build the IPA
+        working-directory: app
+        env:
+          # ไม่รวมส่วนรหัสโฆษณาของ Firebase Analytics
+          FIREBASE_ANALYTICS_WITHOUT_ADID: "true"
+        run: |
+          flutter build ipa --release --build-number="$BUILD_NUMBER" \
+            --dart-define-from-file=env.json --export-options-plist="$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Upload to TestFlight
+        working-directory: app
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+        run: |
+          # flutter build ipa อาจจบแบบสำเร็จแม้ export ไม่ผ่าน จึงต้องตรวจว่ามีไฟล์จริง
+          shopt -s nullglob
+          ipas=(build/ios/ipa/*.ipa)
+          if [ "${#ipas[@]}" -ne 1 ]; then
+            echo "::error::ไม่พบไฟล์ IPA ดู log ของขั้น Build the IPA"
+            exit 1
+          fi
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s' "$APPSTORE_API_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/"AuthKey_$APPSTORE_API_KEY_ID.p8"
+          xcrun altool --upload-app --type ios --file "${ipas[0]}" \
+            --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_API_ISSUER_ID"
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -rf ~/.appstoreconnect/private_keys "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/profile.mobileprovision"

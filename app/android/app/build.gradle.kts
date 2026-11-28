@@ -10,6 +10,9 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.firebase.crashlytics")
 }
 
+// เซ็น release จาก environment variable (CI ตั้งให้ — ดู docs/deploy.md)
+val releaseKeystore: String? = System.getenv("ANDROID_KEYSTORE_PATH")
+
 android {
     namespace = "com.codenour.anything"
     compileSdk = flutter.compileSdkVersion
@@ -31,11 +34,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (!releaseKeystore.isNullOrEmpty()) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // ไม่ได้ตั้ง keystore ใช้ debug key เพื่อให้ `flutter run --release` ในเครื่องยังทำงาน
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }

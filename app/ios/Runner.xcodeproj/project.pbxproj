@@ -289,7 +289,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# อัปโหลด dSYM ให้ Crashlytics อ่าน stack trace ออก — ข้ามถ้า build นี้ไม่มีไฟล์ตั้งค่า Firebase\n[ -f \"${PROJECT_DIR}/Runner/GoogleService-Info.plist\" ] || exit 0\n\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n";
+			shellScript = "# อัปโหลด dSYM ให้ Crashlytics อ่าน stack trace ออก — ข้ามถ้า build นี้ไม่มีไฟล์ตั้งค่า Firebase\n[ -f \"${PROJECT_DIR}/Runner/GoogleService-Info.plist\" ] || exit 0\n# ตำแหน่งของ Swift package ต่างกันตามวิธี build (flutter build หรือ archive จาก Xcode)\nfor packages in \"${BUILD_DIR%/Build/*}/SourcePackages\" \"${PROJECT_DIR}/../build/ios/SourcePackages\"; do\n  run=\"$packages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n  if [ -x \"$run\" ]; then exec \"$run\"; fi\ndone\necho \"warning: ไม่พบสคริปต์ของ Crashlytics จึงไม่ได้อัปโหลด dSYM\"\n";
 		};
 		9740EEB61CF901F6004384FC /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;
