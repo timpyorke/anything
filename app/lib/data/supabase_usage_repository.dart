@@ -10,4 +10,13 @@ class SupabaseUsageRepository implements UsageRepository {
 
   @override
   Future<UsageSummary> mine() async => usageFromJson(Map<String, dynamic>.from(await db.rpc('get_my_usage') as Map));
+
+  @override
+  Future<PlanLimits> memberPlan() async => planLimitsFromRow(await db.from('plans').select().eq('plan', 'pro').single());
+
+  @override
+  Future<bool> syncSubscription() async {
+    final response = await db.functions.invoke('subscription/sync');
+    return (response.data as Map)['member'] == true;
+  }
 }

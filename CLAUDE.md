@@ -29,7 +29,9 @@ docs/       แผนและเอกสาร (mobile-migration.md, rate-limi
 - ห้าม commit `app/env.json` และ `life-export*.json` (มีข้อมูลส่วนตัว/คีย์ — อยู่ใน .gitignore แล้ว)
 - ห้ามส่งข้อมูลส่วนตัวออกไปบริการภายนอกนอกจากที่ผู้ใช้เลือกในแอป:
   - Google AI Studio, Claude, OpenAI หรือ OpenRouter ด้วย API key ของผู้ใช้เอง
+  - RevenueCat (การสมัคร Member): SDK ในแอปและ Edge Function `subscription` ส่งเฉพาะ id บัญชี (UUID) กับข้อมูลการซื้อ — ห้ามตั้งอีเมล ชื่อ หรือ subscriber attribute อื่น
   - AI ของแอป (`AiProviderKind.managed`): ผ่าน Edge Function ของเราไปยัง Anthropic หรือ Google ด้วย key ของเรา — เฉพาะเมื่อผู้ใช้เลือกและกดยินยอมแล้ว (ยินยอมแยกตามบัญชี) ถ้าเพิ่มข้อมูลที่ส่ง หรือเพิ่มผู้ให้บริการ ต้องแก้ข้อความ `managedConsentMessage` และขอความยินยอมใหม่
 - แก้ `supabase/functions/<ชื่อ>/` แล้วต้องรัน `deno task test` ในโฟลเดอร์นั้น
 - `supabase/functions/ai-generate/` ห้ามเก็บหรือ log พรอมต์ รูป และคำตอบ · สัญญา request/error ต้องตรงกับ `app/lib/ai/managed_provider.dart`
+- สถานะสมาชิกเขียนได้จาก `supabase/functions/subscription/` เท่านั้น (ผ่าน `apply_subscription`) แอปไม่เชื่อ SDK อย่างเดียว ต้องให้ server ยืนยัน · ชื่อ entitlement `pro` ต้องตรงกันระหว่าง RevenueCat, secret ของฟังก์ชัน และ `RevenueCatBillingRepository`
 - โควตาบังคับที่ฐานข้อมูล (`consume_ai_quota`, policy ของ storage) แอปแค่แสดงผล — ตัวเลขอยู่ในตาราง `plans`

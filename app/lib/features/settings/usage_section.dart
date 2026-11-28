@@ -6,6 +6,7 @@ import '../../app/language.dart';
 import '../../app/providers.dart';
 import '../../core/utils/format.dart';
 import '../../domain/usage.dart';
+import '../subscription/paywall_page.dart';
 
 /// การใช้งานของบัญชีนี้ — โหลดใหม่ทุกครั้งที่เปิดหน้า
 /// ปิด retry อัตโนมัติ: ให้ผู้ใช้กดลองใหม่เอง
@@ -66,6 +67,13 @@ class UsageRows extends ConsumerWidget {
         meter(t.usageAiToday, data.aiToday, (n) => '$n'),
         meter(t.usageAiMonth, data.aiMonth, (n) => '$n'),
         meter(t.usageStorage, data.storage, fmtBytes),
+        if (ref.watch(billingRepositoryProvider).isAvailable)
+          ListTile(
+            leading: const Icon(Icons.workspace_premium_outlined),
+            title: Text(data.member ? t.manageSubscription : t.subscribe),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => openPaywall(context),
+          ),
       ]),
     );
   }

@@ -94,3 +94,10 @@ UsageSummary usageFromJson(Map<String, dynamic> r) {
     storage: quota(r['storage']),
   );
 }
+
+/// แถวของตาราง plans
+PlanLimits planLimitsFromRow(Map<String, dynamic> r) => (
+      aiPerDay: (r['ai_per_day'] as num).toInt(),
+      aiPerMonth: (r['ai_per_month'] as num).toInt(),
+      storageBytes: (r['storage_bytes'] as num).toInt(),
+    );

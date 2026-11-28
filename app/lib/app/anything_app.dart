@@ -15,6 +15,7 @@ class AnythingApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // ล็อกอินอยู่ไหม — ViewModel ที่ผูกกับผู้ใช้ (diary, filter) จะสร้างใหม่เองเมื่อ id เปลี่ยน
     final userId = ref.watch(currentUserIdProvider);
+    ref.watch(billingSessionProvider);
     final language = ref.watch(languageProvider);
     return MaterialApp(
       title: "anything - diary's",

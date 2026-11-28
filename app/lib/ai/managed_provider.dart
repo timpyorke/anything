@@ -70,7 +70,10 @@ class ManagedProvider implements LlmProvider {
       'service_busy' => strings.aiServiceBusy,
       _ => null,
     };
-    if (quota != null) return AiQuotaException(quota);
+    if (quota != null) {
+      // เพดานรวมของทั้งระบบ สมัครแล้วก็ยังเต็ม
+      return AiQuotaException(quota, upgradable: code != 'service_busy' && (error as Map)['plan'] == 'free');
+    }
     return LlmException(switch (code) {
       'unauthorized' => strings.sessionExpired,
       'too_large' => strings.aiRequestTooLarge,

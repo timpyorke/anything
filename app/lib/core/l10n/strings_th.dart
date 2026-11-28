@@ -517,6 +517,40 @@ class ThStrings extends AppStrings {
   @override
   String get photosPurgedLater => 'รูปจะถูกลบถาวรหลัง 30 วัน';
   @override
+  String get subscribe => 'สมัคร Member';
+  @override
+  String get manageSubscription => 'จัดการการสมัคร';
+  @override
+  String get memberAlready => 'คุณเป็น Member แล้ว';
+  @override
+  String benefitAi(int perDay, int perMonth) => 'AI ของแอป $perDay ครั้งต่อวัน สูงสุด $perMonth ครั้งต่อเดือน';
+  @override
+  String benefitStorage(String size) => 'พื้นที่เก็บรูป $size';
+  @override
+  String get buy => 'สมัคร';
+  @override
+  String get restorePurchases => 'กู้การซื้อ';
+  @override
+  String get noOffers => 'ยังไม่มีแพ็กเกจให้สมัคร';
+  @override
+  String get autoRenewNote => 'ต่ออายุอัตโนมัติจนกว่าจะยกเลิก ยกเลิกได้ในหน้าการสมัครสมาชิกของสโตร์';
+  @override
+  String get termsOfUse => 'ข้อกำหนดการใช้งาน';
+  @override
+  String get privacyPolicy => 'นโยบายความเป็นส่วนตัว';
+  @override
+  String get purchasePending => 'รอการยืนยันการชำระเงิน สิทธิ์จะเปิดเมื่อรายการสำเร็จ';
+  @override
+  String get purchaseActivated => 'เปิดสิทธิ์ Member แล้ว ขอบคุณ';
+  @override
+  String get purchaseNotYetActive => 'ได้รับรายการแล้ว แต่ยังอัปเดตสถานะไม่สำเร็จ เปิดหน้านี้อีกครั้งภายหลัง';
+  @override
+  String get nothingToRestore => 'ไม่พบการสมัครที่ใช้งานอยู่ของบัญชีสโตร์นี้';
+  @override
+  String billingFailed(Object error) => 'ทำรายการไม่สำเร็จ: $error';
+  @override
+  String get cannotOpenLink => 'เปิดลิงก์ไม่ได้';
+  @override
   String get usageFailed => 'โหลดการใช้งานไม่ได้';
 
   // ── บริการ AI

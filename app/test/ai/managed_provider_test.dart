@@ -70,6 +70,20 @@ void main() {
     }
   });
 
+  test('only a free account’s own quota can be raised by subscribing', () async {
+    for (final (code, plan, upgradable) in [
+      ('quota_minute', 'free', true),
+      ('quota_day', 'free', true),
+      ('quota_month', 'free', true),
+      ('quota_day', 'pro', false),
+      ('service_busy', 'free', false),
+    ]) {
+      final provider = _answering(429, {'error': {'code': code, 'plan': plan}});
+      await expectLater(_ask(provider),
+          throwsA(isA<AiQuotaException>().having((e) => e.upgradable, '$code $plan', upgradable)));
+    }
+  });
+
   test('other errors are not quota errors', () async {
     for (final (status, body, expected) in <(int, Object, String)>[
       (401, {'error': {'code': 'unauthorized'}}, 'session expired'),

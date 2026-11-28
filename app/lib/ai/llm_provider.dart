@@ -61,5 +61,8 @@ class LlmException implements Exception {
 
 /// โควตาของ AI ของแอปเต็ม (ของผู้ใช้หรือของทั้งระบบ) — ทางออกคือรอ หรือใช้ AI อื่น
 class AiQuotaException extends LlmException {
-  AiQuotaException(super.message);
+  AiQuotaException(super.message, {this.upgradable = false});
+
+  /// สมัคร Member แล้วจะได้โควตาเพิ่ม
+  final bool upgradable;
 }

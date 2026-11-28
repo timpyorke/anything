@@ -7,10 +7,12 @@ import 'package:anything/app/providers.dart';
 import 'package:anything/features/assistant/anything_button.dart';
 import 'package:anything/features/assistant/assistant_page.dart';
 import 'package:anything/features/settings/ai_settings_page.dart';
+import 'package:anything/features/subscription/paywall_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../support/fake_billing_repository.dart';
 import '../../support/fake_diary_repository.dart';
 import '../../support/fake_usage_repository.dart';
 
@@ -53,6 +55,7 @@ void main() {
       overrides: [
         diaryRepositoryProvider.overrideWithValue(FakeDiaryRepository()),
         usageRepositoryProvider.overrideWithValue(FakeUsageRepository()),
+        billingRepositoryProvider.overrideWithValue(FakeBillingRepository()),
         currentUserIdProvider.overrideWithValue('user'),
         aiSettingsProvider.overrideWith(() => _Ai(llm)),
       ],
@@ -114,5 +117,15 @@ void main() {
     await settle(tester);
     expect(find.text('ลองใหม่'), findsOneWidget);
     expect(find.text('ใช้ AI อื่น'), findsNothing);
+    expect(find.text('สมัคร Member'), findsNothing);
+  });
+
+  testWidgets('a quota that subscribing would raise offers the membership', (tester) async {
+    await openSheet(tester);
+    llm.reply.completeError(AiQuotaException('ครบโควตา', upgradable: true));
+    await settle(tester);
+    await tester.tap(find.text('สมัคร Member'));
+    await settle(tester);
+    expect(find.byType(PaywallPage), findsOneWidget);
   });
 }

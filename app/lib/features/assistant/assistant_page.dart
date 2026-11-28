@@ -6,6 +6,7 @@ import '../../ai/llm_provider.dart';
 import '../../ai/on_device_provider.dart';
 import '../../app/app_theme.dart';
 import '../../app/language.dart';
+import '../../app/providers.dart';
 import '../../core/l10n/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/notice_box.dart';
@@ -15,6 +16,7 @@ import '../photos/photo_widgets.dart';
 import '../settings/ai_settings_page.dart';
 import '../settings/local_model_page.dart';
 import '../settings/settings_page.dart';
+import '../subscription/paywall_page.dart';
 import 'recorder.dart';
 import 'turn_view_model.dart';
 
@@ -122,6 +124,8 @@ class TurnView extends ConsumerWidget {
             // ยังไม่ได้คำตอบเลย: ส่งข้อความเดิมซ้ำได้โดยไม่ต้องพิมพ์ใหม่
             action: r == null && !turn.busy
                 ? Wrap(alignment: WrapAlignment.end, children: [
+                    if (turn.canUpgrade && ref.watch(billingRepositoryProvider).isAvailable)
+                      TextButton(onPressed: () => openPaywall(context), child: Text(t.subscribe)),
                     // โควตาเต็ม: เปลี่ยนไปใช้ AI อื่นแล้วกดลองใหม่ได้เลย
                     if (turn.quotaReached)
                       TextButton(

@@ -520,6 +520,40 @@ class EnStrings extends AppStrings {
   @override
   String get photosPurgedLater => 'Photos will be permanently deleted after 30 days';
   @override
+  String get subscribe => 'Become a Member';
+  @override
+  String get manageSubscription => 'Manage subscription';
+  @override
+  String get memberAlready => 'You are a Member';
+  @override
+  String benefitAi(int perDay, int perMonth) => 'Anything AI $perDay times a day, up to $perMonth a month';
+  @override
+  String benefitStorage(String size) => '$size of photo storage';
+  @override
+  String get buy => 'Subscribe';
+  @override
+  String get restorePurchases => 'Restore purchases';
+  @override
+  String get noOffers => 'No plans are available yet';
+  @override
+  String get autoRenewNote => 'Renews automatically until cancelled. Cancel in your store’s subscription settings';
+  @override
+  String get termsOfUse => 'Terms of use';
+  @override
+  String get privacyPolicy => 'Privacy policy';
+  @override
+  String get purchasePending => 'Waiting for the payment to be confirmed. Membership starts when it succeeds';
+  @override
+  String get purchaseActivated => 'Membership is active. Thank you';
+  @override
+  String get purchaseNotYetActive => 'We received the purchase but could not update your status yet. Open this page again later';
+  @override
+  String get nothingToRestore => 'No active subscription was found for this store account';
+  @override
+  String billingFailed(Object error) => 'Could not complete: $error';
+  @override
+  String get cannotOpenLink => 'Cannot open the link';
+  @override
   String get usageFailed => 'Cannot load usage';
 
   // ── บริการ AI

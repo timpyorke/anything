@@ -69,6 +69,15 @@ abstract class AppStrings {
   String fmtDateTime(DateTime d) =>
       '${fmtDate(d)} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
+  /// รอบการเก็บเงินแบบ ISO 8601 ของสโตร์ เช่น P1M → 'ทุกเดือน' (รูปแบบอื่นคืนข้อความเดิม)
+  String billingPeriod(String period) {
+    final m = RegExp(r'^P([1-9][0-9]?)([DWMY])$').firstMatch(period);
+    if (m == null) return period;
+    const words = {'D': 'daily', 'W': 'weekly', 'M': 'monthly', 'Y': 'yearly'};
+    final unit = m.group(2)!;
+    return recurrenceLabel(Recurrence(m.group(1) == '1' ? words[unit]! : '${m.group(1)}${unit.toLowerCase()}'));
+  }
+
   String providerLabel(AiProviderKind kind) => switch (kind) {
         AiProviderKind.managed => managedLabel,
         AiProviderKind.onDevice => onDeviceLabel,
@@ -351,6 +360,23 @@ abstract class AppStrings {
   String get usageStorage;
   String usageOf(String used, String limit);
   String get usageFailed;
+  String get subscribe;
+  String get manageSubscription;
+  String get memberAlready;
+  String benefitAi(int perDay, int perMonth);
+  String benefitStorage(String size);
+  String get buy;
+  String get restorePurchases;
+  String get noOffers;
+  String get autoRenewNote;
+  String get termsOfUse;
+  String get privacyPolicy;
+  String get purchasePending;
+  String get purchaseActivated;
+  String get purchaseNotYetActive;
+  String get nothingToRestore;
+  String billingFailed(Object error);
+  String get cannotOpenLink;
   String storageFull(String limit);
   /// บอกตอนลบรายการที่มีรูป (ตรงกับกำหนด 30 วันในฐานข้อมูล)
   String get photosPurgedLater;
