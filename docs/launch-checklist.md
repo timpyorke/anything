@@ -69,5 +69,6 @@
 
 ## 8. ก่อนปล่อย
 
+- [ ] ตั้ง environment `production` และ secret ตาม [deploy.md](deploy.md) แล้วรันแต่ละ workflow ให้ผ่านอย่างน้อยหนึ่งครั้ง
 - [ ] deploy ฟังก์ชันทั้งหมดและ apply migration ให้ครบก่อนออกแอปเวอร์ชันใหม่
 - [ ] push branch และ merge เข้า `main`

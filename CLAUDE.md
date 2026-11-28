@@ -10,7 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 app/        แอป Flutter (iOS/Android) — flutter analyze && flutter test ต้องผ่านเสมอ
 supabase/   migrations ของฐานข้อมูล (schema + RLS) และ Edge Functions (functions/)
-docs/       แผนและเอกสาร (mobile-migration.md, rate-limit.md, launch-checklist.md, legal/)
+docs/       แผนและเอกสาร (mobile-migration.md, rate-limit.md, launch-checklist.md, deploy.md, legal/)
+.github/    workflow สำหรับ deploy (กดรันเอง) และสคริปต์ที่ใช้บน CI
 .vscode/    launch.json (รัน/ดีบัก), tasks.json, settings.json
 ```
 
@@ -37,6 +38,8 @@ supabase db push
 supabase functions deploy
 ```
 การตั้งค่าครั้งแรก (secret ของฟังก์ชัน, vault `project_url` สำหรับ cron) อยู่ใน `README.md`
+
+Deploy ผ่าน GitHub Actions: `docs/deploy.md` — เพิ่ม secret/variable ใน workflow ต้องแก้เอกสารนี้ และเปลี่ยนเวอร์ชัน Flutter ต้องแก้ทุก workflow
 
 ## สถาปัตยกรรม (app/lib) — Clean Architecture + MVVM, Riverpod + freezed
 - `domain/` entity (freezed, immutable) + `repositories/` (interface) + กฎ validate — ไม่รู้จัก Flutter UI/Supabase

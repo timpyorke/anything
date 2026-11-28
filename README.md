@@ -138,6 +138,10 @@ cd supabase/functions/ai-generate
 deno task test
 ```
 
+## Deploy
+
+GitHub Actions แบบกดรันเองจาก `main`: Supabase, Android (App Distribution / Google Play) และ iOS (TestFlight) ต้องตั้ง secret ก่อน — [คู่มือ](docs/deploy.md)
+
 ## ความปลอดภัยและความเป็นส่วนตัว
 
 - ทุกตารางเปิด Row Level Security ผู้ใช้เข้าถึงได้เฉพาะข้อมูลของตัวเอง โควตาและสถานะสมาชิกเขียนได้จาก server เท่านั้น
@@ -152,6 +156,7 @@ deno task test
 | [launch-checklist.md](docs/launch-checklist.md) | งานที่เหลือก่อนเปิดจริง |
 | [rate-limit.md](docs/rate-limit.md) | โควตา ต้นทุน การสมัครสมาชิก และการลบบัญชี |
 | [social-login.md](docs/social-login.md) | ตั้งค่าการเข้าสู่ระบบ |
+| [deploy.md](docs/deploy.md) | deploy ด้วย GitHub Actions และค่าที่ต้องตั้ง |
 | [mobile-migration.md](docs/mobile-migration.md) | การย้ายจากระบบ markdown เดิม |
 | [legal/](docs/legal/) | **ร่าง**นโยบายความเป็นส่วนตัว ข้อกำหนด และหน้าลบบัญชี (ยังไม่ผ่านการตรวจทางกฎหมาย) |
 
