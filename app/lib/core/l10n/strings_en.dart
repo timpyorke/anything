@@ -515,6 +515,11 @@ class EnStrings extends AppStrings {
   @override
   String usageOf(String used, String limit) => '$used of $limit';
   @override
+  String storageFull(String limit) => 'Photo storage is full ($limit limit), so nothing was saved. Remove the new photos to save, '
+      'or remove old photos from an entry and save that first';
+  @override
+  String get photosPurgedLater => 'Photos will be permanently deleted after 30 days';
+  @override
   String get usageFailed => 'Cannot load usage';
 
   // ── บริการ AI

@@ -118,7 +118,11 @@ class _EntryEditorPageState extends ConsumerState<EntryEditorPage> {
     final ok = await confirmAction(
       context,
       title: t.deleteEntryTitle,
-      message: e.recurrence == null ? name : '$name\n${t.deleteSeriesWarning}',
+      message: [
+        name,
+        if (e.recurrence != null) t.deleteSeriesWarning,
+        if (e.photos.any((p) => !p.isNew)) t.photosPurgedLater,
+      ].join('\n'),
       cancelLabel: t.cancel,
       confirmLabel: t.delete,
     );

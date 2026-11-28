@@ -9,6 +9,7 @@ import '../domain/metric.dart';
 import '../domain/photo.dart';
 import '../domain/repositories/diary_repository.dart';
 import 'mappers/row_mappers.dart';
+import 'supabase_usage_repository.dart';
 
 /// ทุกการอ่าน/เขียน Supabase อยู่ที่นี่ที่เดียว (RLS กรองข้อมูลตามผู้ใช้ที่ล็อกอินให้แล้ว)
 class SupabaseDiaryRepository implements DiaryRepository {
@@ -162,6 +163,7 @@ class SupabaseDiaryRepository implements DiaryRepository {
   }
 
   /// อัปโหลดรูปใหม่แล้วส่ง path ให้ [write] — ขั้นไหนพังก็ลบไฟล์ที่อัปโหลดไปแล้ว
+  /// อัปโหลดไม่ได้เพราะพื้นที่เต็มโยน [StorageFullException]
   Future<T> _withUploads<T>(List<Photo> photos, Future<T> Function(List<String> paths) write) async {
     final uploaded = <String>[];
     try {
@@ -176,9 +178,23 @@ class SupabaseDiaryRepository implements DiaryRepository {
         uploaded.add(path);
       }
       return await write(uploaded);
-    } catch (_) {
+    } catch (e) {
+      // ต้องดูพื้นที่ก่อนลบไฟล์ที่เพิ่งอัปโหลด ไม่งั้นยอดใช้อาจกลับมาต่ำกว่าเพดาน
+      final fullAt = e is StorageException ? await _fullStorageLimit() : null;
       await _removeFiles(uploaded);
+      if (fullAt != null) throw StorageFullException(fullAt);
       rethrow;
+    }
+  }
+
+  /// เพดานพื้นที่ถ้าใช้ครบแล้ว (null = ยังไม่เต็ม หรือถามไม่ได้)
+  /// ถามจากฐานข้อมูลแทนการอ่านข้อความ error ของ Storage ซึ่งแยกพื้นที่เต็มออกจากสิทธิ์อื่นไม่ได้
+  Future<int?> _fullStorageLimit() async {
+    try {
+      final storage = (await SupabaseUsageRepository(db).mine()).storage;
+      return storage.used >= storage.limit ? storage.limit : null;
+    } catch (_) {
+      return null;
     }
   }
 

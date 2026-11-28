@@ -23,8 +23,17 @@ class FakeDiaryRepository implements DiaryRepository {
   Future<List<MetricDef>> metricDefs() async => metrics;
   @override
   Future<List<Entry>> entries() async => [for (final e in rows) if (!deleted.contains(e.id)) e];
+  /// ตั้งค่าเพื่อจำลองพื้นที่เก็บรูปเต็ม: บันทึกที่มีรูปใหม่จะไม่สำเร็จ
+  int? storageFullAt;
+
+  void _checkRoom(Entry e) {
+    final limit = storageFullAt;
+    if (limit != null && e.photos.any((p) => p.isNew)) throw StorageFullException(limit);
+  }
+
   @override
   Future<Entry> insert(Entry e) async {
+    _checkRoom(e);
     final saved = e.copyWith(id: 'id-${_next++}', photos: _store(e.photos));
     rows.add(saved);
     return saved;
@@ -32,6 +41,7 @@ class FakeDiaryRepository implements DiaryRepository {
 
   @override
   Future<Entry> update(Entry e, {List<Photo> removedPhotos = const []}) async {
+    _checkRoom(e);
     final i = rows.indexWhere((x) => x.id == e.id);
     // เหมือนของจริง: เพิ่มรูปใหม่ และลบเฉพาะรูปที่ระบุ
     final kept = rows[i].photos.where((p) => !removedPhotos.contains(p));

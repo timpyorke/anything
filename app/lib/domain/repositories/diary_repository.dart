@@ -12,6 +12,7 @@ abstract class DiaryRepository {
   Future<List<MetricDef>> metricDefs();
   Future<List<Entry>> entries();
   /// รูปใน [Entry.photos] ที่ยังไม่เคยเก็บ (ไม่มี path) จะถูกอัปโหลด
+  /// พื้นที่ไม่พอโยน [StorageFullException] โดยไม่มีอะไรถูกบันทึก
   Future<Entry> insert(Entry e);
 
   /// เหมือน [insert] ส่วนรูปเดิมถูกลบเฉพาะที่ระบุใน [removedPhotos]
@@ -36,6 +37,14 @@ abstract class DiaryRepository {
 
   /// นำเข้าจากไฟล์ export ของระบบเดิม คืนจำนวนที่นำเข้า (ไฟล์ผิดรูปแบบโยน [UnsupportedExportException])
   Future<int> importExport(Map<String, dynamic> data);
+}
+
+/// พื้นที่เก็บรูปตามแผนเต็มแล้ว ([limit] = เพดานเป็นไบต์)
+class StorageFullException implements Exception {
+  StorageFullException(this.limit);
+  final int limit;
+  @override
+  String toString() => 'StorageFullException($limit)';
 }
 
 /// ไฟล์ที่นำเข้าไม่ใช่ export ของระบบเดิม

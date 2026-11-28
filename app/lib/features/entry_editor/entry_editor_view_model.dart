@@ -10,6 +10,7 @@ import '../../domain/metric.dart';
 import '../../domain/photo.dart';
 import '../../domain/recurrence.dart';
 import '../diary/diary_view_model.dart';
+import '../diary/storage_full.dart';
 import '../photos/pick_photos.dart';
 
 part 'entry_editor_view_model.freezed.dart';
@@ -122,7 +123,7 @@ class EntryEditorViewModel extends Notifier<EntryEditorState> {
       await ref.read(diaryViewModelProvider.notifier).save(out, removedPhotos: removed);
       if (ref.mounted) state = state.copyWith(exit: EditorExit.saved, saving: false);
     } catch (err) {
-      if (ref.mounted) state = state.copyWith(errors: [t.saveFailed(err)], saving: false);
+      if (ref.mounted) state = state.copyWith(errors: [storageFullMessage(err, t) ?? t.saveFailed(err)], saving: false);
     }
   }
 

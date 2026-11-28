@@ -512,6 +512,11 @@ class ThStrings extends AppStrings {
   @override
   String usageOf(String used, String limit) => '$used จาก $limit';
   @override
+  String storageFull(String limit) => 'พื้นที่เก็บรูปเต็ม (จำกัด $limit) จึงยังไม่ได้บันทึก เอารูปที่เพิ่มใหม่ออกแล้วบันทึกได้ '
+      'หรือเอารูปเก่าออกจากรายการแล้วบันทึกก่อน จึงเพิ่มรูปใหม่';
+  @override
+  String get photosPurgedLater => 'รูปจะถูกลบถาวรหลัง 30 วัน';
+  @override
   String get usageFailed => 'โหลดการใช้งานไม่ได้';
 
   // ── บริการ AI

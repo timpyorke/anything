@@ -351,6 +351,9 @@ abstract class AppStrings {
   String get usageStorage;
   String usageOf(String used, String limit);
   String get usageFailed;
+  String storageFull(String limit);
+  /// บอกตอนลบรายการที่มีรูป (ตรงกับกำหนด 30 วันในฐานข้อมูล)
+  String get photosPurgedLater;
 
   // ── บริการ AI
   String get onDeviceLabel;

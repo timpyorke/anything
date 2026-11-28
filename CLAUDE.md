@@ -24,10 +24,12 @@ docs/       แผนและเอกสาร (mobile-migration.md, rate-limi
 - กฎการตัดสินใจของ AI ในแอปอยู่ที่ `app/lib/features/assistant/recorder.dart` (พรอมต์ + ตรวจทุก action ก่อนแสดงผู้ใช้) — ถ้าแก้ ต้องแก้ test ใน `app/test/features/assistant/recorder_test.dart` ให้ตรง
 - เข้าสู่ระบบด้วย Google/Apple/Facebook: `app/lib/data/supabase_social_auth_repository.dart` · scheme ใน `authCallbackScheme` ต้องตรงกับ `AndroidManifest.xml` · การตั้งค่าฝั่ง dashboard อยู่ที่ `docs/social-login.md`
 - รูปของรายการลบเฉพาะที่ส่งใน `removedPhotos` ของ `DiaryRepository.update` — รูปที่ไม่อยู่ใน `entry.photos` ไม่ถูกลบ
+- รูปของรายการที่ soft delete ถูกลบถาวรหลัง 30 วันโดย `supabase/functions/purge-photos` (cron) — ถ้าแก้กำหนดต้องแก้ข้อความ `photosPurgedLater` ด้วย
 - ระบบ markdown เดิม (`legacy/`) ถูกลบแล้ว กู้ได้จาก git: `git show a4b6d1d:legacy/...` หรือ `git checkout a4b6d1d -- legacy`
 - ห้าม commit `app/env.json` และ `life-export*.json` (มีข้อมูลส่วนตัว/คีย์ — อยู่ใน .gitignore แล้ว)
 - ห้ามส่งข้อมูลส่วนตัวออกไปบริการภายนอกนอกจากที่ผู้ใช้เลือกในแอป:
   - Google AI Studio, Claude, OpenAI หรือ OpenRouter ด้วย API key ของผู้ใช้เอง
   - AI ของแอป (`AiProviderKind.managed`): ผ่าน Edge Function ของเราไปยัง Anthropic หรือ Google ด้วย key ของเรา — เฉพาะเมื่อผู้ใช้เลือกและกดยินยอมแล้ว (ยินยอมแยกตามบัญชี) ถ้าเพิ่มข้อมูลที่ส่ง หรือเพิ่มผู้ให้บริการ ต้องแก้ข้อความ `managedConsentMessage` และขอความยินยอมใหม่
-- `supabase/functions/ai-generate/` ห้ามเก็บหรือ log พรอมต์ รูป และคำตอบ · แก้แล้วต้องรัน `deno task test` ในโฟลเดอร์นั้น · สัญญา request/error ต้องตรงกับ `app/lib/ai/managed_provider.dart`
+- แก้ `supabase/functions/<ชื่อ>/` แล้วต้องรัน `deno task test` ในโฟลเดอร์นั้น
+- `supabase/functions/ai-generate/` ห้ามเก็บหรือ log พรอมต์ รูป และคำตอบ · สัญญา request/error ต้องตรงกับ `app/lib/ai/managed_provider.dart`
 - โควตาบังคับที่ฐานข้อมูล (`consume_ai_quota`, policy ของ storage) แอปแค่แสดงผล — ตัวเลขอยู่ในตาราง `plans`

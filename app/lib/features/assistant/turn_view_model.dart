@@ -8,6 +8,7 @@ import '../../ai/ai_settings.dart';
 import '../../ai/llm_provider.dart';
 import '../../app/language.dart';
 import '../diary/diary_view_model.dart';
+import '../diary/storage_full.dart';
 import 'recorder.dart';
 
 part 'turn_view_model.freezed.dart';
@@ -151,11 +152,13 @@ class TurnViewModel extends Notifier<TurnState> {
     final chosen = r.actions.where((a) => a.selected && a.valid).toList()
       ..sort((a, b) => (a.isDefinition ? 0 : 1).compareTo(b.isDefinition ? 0 : 1));
     final failures = <String>[];
+    final done = <ProposedAction>[];
     for (final a in chosen) {
       try {
         await a.run!(diary);
+        done.add(a);
       } catch (e) {
-        failures.add('${a.summary}: $e');
+        failures.add('${a.summary}: ${storageFullMessage(e, t) ?? e}');
       }
     }
     final p = await settings.resolveProvider();
@@ -164,7 +167,15 @@ class TurnViewModel extends Notifier<TurnState> {
           failures.isEmpty ? null : failures.join('\n'));
     }
     final error = failures.isEmpty ? null : t.someSavesFailed(failures.join('\n'));
-    if (ref.mounted) state = state.copyWith(busy: false, applied: error == null, error: error);
+    if (ref.mounted) {
+      state = state.copyWith(busy: false, applied: error == null, error: error);
+      // บางรายการพัง: เอารายการที่บันทึกแล้วออกจากชุด กดบันทึกอีกครั้งจะได้ไม่เกิดรายการซ้ำ
+      if (error != null) {
+        for (final a in done) {
+          markSaved(r.actions.indexOf(a));
+        }
+      }
+    }
     return (count: chosen.length, error: error);
   }
 

@@ -156,6 +156,47 @@ void main() {
     expect([for (final p in stored) repo.files[p.path]], [png(2), png(3)]);
   });
 
+  test('a full storage keeps the editor open and explains what to do', () async {
+    repo.storageFullAt = 104857600;
+    const args = EditorArgs();
+    c.listen(entryEditorViewModelProvider(args), (_, _) {});
+    final vm = c.read(entryEditorViewModelProvider(args).notifier);
+    picker.next = [png()];
+    await vm.addPhotos(PhotoSource.camera);
+    await vm.save(title: 'ใบเสร็จ', body: '', times: '', metrics: const []);
+    final state = c.read(entryEditorViewModelProvider(args));
+    expect(state.errors.single, contains('พื้นที่เก็บรูปเต็ม (จำกัด 100 MB)'));
+    expect(state.exit, isNull);
+    expect(repo.rows, isEmpty);
+
+    // เอารูปใหม่ออกแล้วบันทึกได้
+    vm.removePhoto(state.entry.photos.single);
+    await vm.save(title: 'ใบเสร็จ', body: 'x', times: '', metrics: const []);
+    expect(repo.rows.single.title, 'ใบเสร็จ');
+  });
+
+  test('saving again after a full storage does not repeat the entries already saved', () async {
+    repo.storageFullAt = 104857600;
+    llm.reply = '{"actions":['
+        '{"type":"create","kind":"daily","date":"2026-11-28","category":"daily","title":"วิ่ง","body":"วิ่ง"},'
+        '{"type":"create","kind":"daily","date":"2026-11-28","category":"daily","title":"ใบเสร็จ","body":"x","photos":[1]}]}';
+    final TurnRequest request = (text: 'สองเรื่อง', photos: [png()]);
+    c.listen(turnViewModelProvider(request), (_, _) {});
+    await _settle();
+    final vm = c.read(turnViewModelProvider(request).notifier);
+
+    final first = await vm.apply();
+    expect(first.error, contains('พื้นที่เก็บรูปเต็ม'));
+    expect([for (final e in repo.rows) e.title], ['วิ่ง']);
+    final turn = c.read(turnViewModelProvider(request));
+    expect([for (final a in turn.result!.actions) a.selected], [false, true]);
+    expect(turn.applied, isFalse);
+
+    repo.storageFullAt = null;
+    expect((await vm.apply()).error, isNull);
+    expect([for (final e in repo.rows) e.title], ['วิ่ง', 'ใบเสร็จ']);
+  });
+
   test('an entry may be saved with nothing but a photo', () async {
     final saved = await c.read(diaryViewModelProvider.notifier)
         .save(Entry(date: DateTime.utc(2026, 1, 1), category: 'health', photos: [Photo(bytes: png())]));
